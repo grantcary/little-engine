@@ -35,19 +35,25 @@ class Object():
   def __init__(self, vertices: list[Vertex] = [], edges: list[Edge] = []):
     self.vertices = vertices
     self.edges = edges
+    self.origin = self.set_origin()
 
   # TODO: this is inconsistent, get average of all vertices
-  def find_origin(self) -> Point:
+  def set_origin(self) -> Point:
     points = [p.points[0] for p in self.vertices]
     x = (max(points, key=lambda p: p.x).x + min(points, key=lambda p: p.x).x) / 2
     y = (max(points, key=lambda p: p.y).y + min(points, key=lambda p: p.y).y) / 2
     z = (max(points, key=lambda p: p.z).z + min(points, key=lambda p: p.z).z) / 2
     return Point(x, y, z)
 
-#     def translate(self, x: float, y: float, z: float):
-#         for vertex in self.vertices:
-#             vertex.translate(x, y, z)
+  def translate(self, x: float, y: float, z: float):
+    for vertex in self.vertices:
+      vertex.translate(x, y, z)
+    self.origin = self.set_origin()
 
-#     def moveto(self, target: Point):
-#         for vertex in self.vertices:
-#             vertex.moveto(target)
+  def moveto(self, target: Point):
+    x_delta = target.x - self.origin.x
+    y_delta = target.y - self.origin.y
+    z_delta = target.z - self.origin.z
+    for vertex in self.vertices:
+      vertex.translate(x_delta, y_delta, z_delta)
+    self.origin = target
