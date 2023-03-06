@@ -25,8 +25,9 @@ class Vertex(Point):
       point.z = target.z
 
 class Edge():
-  def __init__(self, points = ()):
-    self.points = points
+  def __init__(self, point: Point, vertices: list['Edge'] = []):
+    self.point = point
+    self.vertices = vertices
 
 class Face():
   def __init__(self, edges = []):
