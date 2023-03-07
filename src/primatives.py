@@ -9,6 +9,10 @@ class Point():
     self.y += y
     self.z += z
 
+  def __repr__(self):
+    return f"Point({self.x}, {self.y}, {self.z})"
+
+
 class Vertex(Point):
   def __init__(self, points: list[Point] = []):
     # points should all be same x, y, z
@@ -24,8 +28,9 @@ class Vertex(Point):
       point.y = target.y
       point.z = target.z
 
+# linked list point cloud
 class Edge():
-  def __init__(self, point: Point, vertices: list['Edge'] = []):
+  def __init__(self, point: Point, vertices: list['Edge'] = None):
     self.point = point
     self.vertices = vertices
 
@@ -37,10 +42,10 @@ class Face():
   # TODO: calculate normal vector
 
 class Object():
-  def __init__(self, vertices: list[Vertex] = [], edges: list[Edge] = []):
-    self.vertices = vertices
-    self.edges = edges
-    self.origin: Point = self.set_origin()
+  def __init__(self, vertices: list[Vertex] = None, edges: Edge = None):
+    self.vertices: list[Vertex] = vertices
+    self.edges: Edge = edges
+    self.origin: Point = self.set_origin() if self.vertices else None
 
   def set_origin(self) -> Point:
     points = [p.points[0] for p in self.vertices]
@@ -61,3 +66,18 @@ class Object():
     for vertex in self.vertices:
       vertex.translate(x_delta, y_delta, z_delta)
     self.origin = target
+
+  def traverse_edges(self) -> list[Point]:
+    def t(edge: Edge, found: list[Point]):
+      if edge.point in found:
+        return
+      found.append(edge.point)
+      if edge.vertices == None:
+        return
+      for e in edge.vertices:
+        t(e, found)
+
+    found = []
+    t(self.edges, found)
+    print(found)
+    return found
