@@ -12,27 +12,30 @@ class Point():
   def __repr__(self):
     return f"Point({self.x}, {self.y}, {self.z})"
 
-
-class Vertex(Point):
-  def __init__(self, points: list[Point] = []):
-    # points should all be same x, y, z
-    self.points = points
+class Vertex():
+  def __init__(self, x: float, y: float, z: float):
+    self.x = x
+    self.y = y
+    self.z = z
 
   def translate(self, x: float, y: float, z: float) -> None:
-    for point in self.points:
-      point.translate(x, y, z)
+    self.x += x
+    self.y += y
+    self.z += z
     
   def moveto(self, target: Point) -> None:
-    for point in self.points:
-      point.x = target.x
-      point.y = target.y
-      point.z = target.z
+    self.x = target.x
+    self.y = target.y
+    self.z = target.z
+
+  def __repr__(self):
+    return f"Vertex({self.x}, {self.y}, {self.z})"
 
 # linked list point cloud
 class Edge():
-  def __init__(self, point: Point, vertices: list['Edge'] = None):
-    self.point = point
-    self.vertices = vertices
+  def __init__(self, vertex: Vertex, connected: list['Edge'] = None):
+    self.vertex = vertex
+    self.connected = connected
 
 class Face():
   def __init__(self, edges = []):
@@ -41,6 +44,11 @@ class Face():
   # TODO: create vertices from edges
   # TODO: calculate normal vector
 
+  # face/edge relation rules:
+  # you can't have an face on an open edge loop
+  # you can't have a face with less than 3 edges
+  # you can have an edge loop with no face
+
 class Object():
   def __init__(self, vertices: list[Vertex] = None, edges: Edge = None):
     self.vertices: list[Vertex] = vertices
@@ -48,7 +56,7 @@ class Object():
     self.origin: Point = self.set_origin() if self.vertices else None
 
   def set_origin(self) -> Point:
-    points = [p.points[0] for p in self.vertices]
+    points = [p for p in self.vertices]
     x = (max(points, key=lambda p: p.x).x + min(points, key=lambda p: p.x).x) / 2
     y = (max(points, key=lambda p: p.y).y + min(points, key=lambda p: p.y).y) / 2
     z = (max(points, key=lambda p: p.z).z + min(points, key=lambda p: p.z).z) / 2
@@ -69,15 +77,14 @@ class Object():
 
   def traverse_edges(self) -> list[Point]:
     def t(edge: Edge, found: list[Point]):
-      if edge.point in found:
+      if edge.vertex in found:
         return
-      found.append(edge.point)
-      if edge.vertices == None:
+      found.append(edge.vertex)
+      if edge.connected == None:
         return
-      for e in edge.vertices:
+      for e in edge.connected:
         t(e, found)
-
+        
     found = []
     t(self.edges, found)
-    print(found)
     return found
