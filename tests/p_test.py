@@ -1,9 +1,11 @@
-from primatives import Point, Vertex, Face, Object
-from matplotlib import pyplot as plt
-import random
-import copy
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-def complex_edge_mesh():
+from littleengine.mesh import Point, Vertex, Face, Object
+from tools import plot_points_3D
+
+def complex_edge_mesh_generator():
   pass
 
 def square_pyramid_generator(width: float, height: float):
@@ -26,19 +28,6 @@ def square_pyramid_generator(width: float, height: float):
   v4.faces = [f2, f3, f4]
 
   return Object([v0, v1, v2, v3, v4], [f0, f1, f2, f3, f4])
-
-def plot_points_3D(points: list):
-  fig = plt.figure()
-  ax = fig.add_subplot(projection='3d')
-
-  for i in points:
-    ax.scatter(i[0], i[1], i[2], marker='o')
-
-  ax.set_xlabel('X')
-  ax.set_ylabel('Y')
-  ax.set_zlabel('Z')
-
-  plt.show()
 
 if __name__ == "__main__":
   obj = square_pyramid_generator(4, 4)
