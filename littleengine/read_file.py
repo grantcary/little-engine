@@ -7,7 +7,6 @@ class OBJ():
       self.lines = f.read().splitlines()
     self.vertices, self.faces = self.read()
 
-
   def read(self) -> list:
     vertices, faces = [], []
     for line in self.lines:

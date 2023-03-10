@@ -38,7 +38,7 @@ class Face(Tools):
     self.vertices = vertices
     self.normal = self.set_normal()
 
-  # TODO: calculate normal vector
+  # TODO: calculate normal unit vector
   def set_normal(self):
     A = self.slope(self.vertices[1].xyz, self.vertices[0].xyz)
     B = self.slope(self.vertices[2].xyz, self.vertices[0].xyz)
@@ -51,11 +51,12 @@ class Face(Tools):
     return f"Face(vertices: {len(self.vertices)}, normal: {self.normal[0]}, {self.normal[1]}, {self.normal[2]})"
 
 class Object(Tools):
-  def __init__(self, name: str = None, vertices: list[Vertex] = None, faces: list[Face] = None) -> None:
+  def __init__(self, name: str = None, vertices: list[Vertex] = None, faces: list[Face] = None, visible: bool = True) -> None:
     self.name: str = name
     self.vertices: list = vertices
     self.faces: list = faces
     self.origin: Point = self.set_origin(vertices)
+    self.visible: bool = visible
 
   def translate(self, x: float, y: float, z: float) -> None:
     for vertex in self.vertices:
@@ -69,13 +70,24 @@ class Object(Tools):
     self.origin = target
 
   def __repr__(self):
-    return f"Object(vertices: {len(self.vertices)}, faces: {len(self.faces)})"
+    return f"Object(name: {self.name}, vertices: {len(self.vertices)}, faces: {len(self.faces)})"
   
 class Group(Tools):
   def __init__(self, name: str = None, *objects: list[Object]) -> None:
     self.name: str = name
     self.objects: list = objects
     self.origin: Point = self.set_origin(o.origin for o in objects)
+
+  def translate(self, x: float, y: float, z: float) -> None:
+    for object in self.objects:
+      object.translate(x, y, z)
+    self.origin.translate(x, y, z)
+
+  def moveto(self, target: Point) -> None:
+    x, y, z = self.slope(self.origin.xyz, target.xyz)
+    for object in self.objects:
+      object.translate(x, y, z)
+    self.origin = target
 
   def __repr__(self):
     return f"Group(name: {self.name}, objects: {len(self.objects)})"
