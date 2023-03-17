@@ -1,4 +1,4 @@
-from littleengine.mesh import Vertex, Face, Object
+from mesh import Vertex, Face, Object
 
 class OBJ():
   def __init__(self, filename):
