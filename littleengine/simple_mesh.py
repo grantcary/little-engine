@@ -6,7 +6,7 @@ from time import time
 OBJ_FILE = '../test_objects/suzie.obj'
 
 class Object():
-  def __init__(self, name = None, vertices = None, faces = None, origin = None):
+  def __init__(self, name: str = None, vertices: list = [], faces: list = [], origin: np.array = np.array([])):
       self.name = name
       self.vertices = vertices # list of raw vertices
       # TODO: 'if faces' not working as expected, requires 'if faces is not None'. FIX
@@ -37,7 +37,7 @@ class Object():
     for v in self.vertices:
       v += np.array([dx, dy, dz])
     self.origin = target
-    
+
   def vertex_faces(self, vertex):
     return np.array(self.vertex_map[vertex]) if self.vertex_map is not None else None
   
@@ -47,6 +47,21 @@ class Object():
   def __repr__(self):
     return f"Object(name: {self.name}, vertices: {len(self.vertices)}, faces: {len(self.f_to_v)})"
 
+class Group():
+  def __init__(self, name: str = None, objects: list = [], origin: np.array = np.array([])):
+    self.name = name
+    self.objects = objects
+    self.origin = self.set_group_origin() if origin is None else origin
+  
+  def set_group_origin(self):
+    origins = [o.origin for o in self.objects]
+    x = (max(origins, key=lambda p: p[0])[0] + min(origins, key=lambda p: p[0])[0]) / 2
+    y = (max(origins, key=lambda p: p[1])[1] + min(origins, key=lambda p: p[1])[1]) / 2
+    z = (max(origins, key=lambda p: p[2])[2] + min(origins, key=lambda p: p[2])[2]) / 2
+    return np.array([x, y, z])
+
+  def __repr__(self):
+    return f"Group(name: {self.name}, objects: {len(self.objects)})"
 
 def plot_points_3D(points: list):
   fig = plt.figure()
@@ -60,7 +75,6 @@ def plot_points_3D(points: list):
   ax.set_zlabel('Z')
 
   plt.show()
-
 
 if __name__ == "__main__":
   obj = OBJ(OBJ_FILE)
