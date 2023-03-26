@@ -1,30 +1,32 @@
 from matplotlib import pyplot as plt
-from read_file import OBJ
 import numpy as np
+from typing import List
 from time import time
 
-OBJ_FILE = '../test_objects/suzie.obj'
-
 class Object():
-  def __init__(self, name: str = None, vertices: list = [], faces: list = [], origin: np.array = np.array([])):
+  def __init__(self, name: str = None, vertices: List = None, faces: List = None, origin: np.array = None):
       self.name = name
-      self.vertices = vertices # list of raw vertices
-      # TODO: 'if faces' not working as expected, requires 'if faces is not None'. FIX
-      self.face_map = {i: list(verts) for i, verts in enumerate(faces)} if faces is not None else None # maps what vertices make up a given face
-      if faces is not None:
-        vertex_keys = {i: [] for i in range(faces.flatten().max() + 1)} # generates a dictionary with keys for each vertex index
-        for i in range(len(faces)):
-          for j in faces[i]:
-            vertex_keys[j].append(i)
-      self.vertex_map = dict(sorted(vertex_keys.items())) if faces is not None else None # maps adjacent faces to each vertex
+      self.vertices = vertices if vertices is not None else []
+      self.face_map = self.compose_face_map(faces) # maps what vertices make up a given face
+      self.vertex_map = self.compose_vertex_map(faces) # maps adjacent faces to each vertex
       self.origin = self.set_origin() if origin is None else origin # center of object based on max and min vertices on each axis
+
+  def compose_face_map(self, faces: List) -> dict:
+      if faces is None:
+          return None
+      return {i: list(verts) for i, verts in enumerate(faces)}
+
+  def compose_vertex_map(self, faces: List) -> dict:
+      if faces is None:
+          return None
+      return {vertex: [i for i, face in enumerate(faces) if vertex in face] for vertex in range(np.max(faces) + 1)}
 
   # takes max and min of each axis and averages them to find the center
   def set_origin(self):
-    x = (max(self.vertices, key=lambda p: p[0])[0] + min(self.vertices, key=lambda p: p[0])[0]) / 2
-    y = (max(self.vertices, key=lambda p: p[1])[1] + min(self.vertices, key=lambda p: p[1])[1]) / 2
-    z = (max(self.vertices, key=lambda p: p[2])[2] + min(self.vertices, key=lambda p: p[2])[2]) / 2
-    return np.array([x, y, z])
+    vertices_array = np.array(self.vertices)
+    min_coords = vertices_array.min(axis=0)
+    max_coords = vertices_array.max(axis=0)
+    return (min_coords + max_coords) / 2
 
   # TODO: start linear algebra
   def translate(self, x, y, z):
@@ -45,42 +47,4 @@ class Object():
     return np.array([self.vertices[v] for v in self.face_map[face]]) if self.face_map is not None else None
   
   def __repr__(self):
-    return f"Object(name: {self.name}, vertices: {len(self.vertices)}, faces: {len(self.f_to_v)})"
-
-class Group():
-  def __init__(self, name: str = None, objects: list = [], origin: np.array = np.array([])):
-    self.name = name
-    self.objects = objects
-    self.origin = self.set_group_origin() if origin is None else origin
-  
-  def set_group_origin(self):
-    origins = [o.origin for o in self.objects]
-    x = (max(origins, key=lambda p: p[0])[0] + min(origins, key=lambda p: p[0])[0]) / 2
-    y = (max(origins, key=lambda p: p[1])[1] + min(origins, key=lambda p: p[1])[1]) / 2
-    z = (max(origins, key=lambda p: p[2])[2] + min(origins, key=lambda p: p[2])[2]) / 2
-    return np.array([x, y, z])
-
-  def __repr__(self):
-    return f"Group(name: {self.name}, objects: {len(self.objects)})"
-
-def plot_points_3D(points: list):
-  fig = plt.figure()
-  ax = fig.add_subplot(projection='3d')
-
-  for i in points:
-    ax.scatter(i[0], i[1], i[2], marker='o')
-
-  ax.set_xlabel('X')
-  ax.set_ylabel('Y')
-  ax.set_zlabel('Z')
-
-  plt.show()
-
-if __name__ == "__main__":
-  obj = OBJ(OBJ_FILE)
-  vertices, faces = obj.read()
-  o = Object(name = obj.name, vertices = np.array(vertices), faces = np.array(faces))
-  # print('face to vertex', o.face_map)
-  # print('vertex to face', o.vertex_map)
-
-  # plot_points_3D(o.vertices)
+    return f"Object(name: {self.name}, vertices: {len(self.vertices)}, faces: {len(self.face_map)})"
