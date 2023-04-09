@@ -3,7 +3,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from littleengine.read_file import OBJ
-from littleengine.mesh import Group
+from littleengine.legacy_mesh import Group
 from tools import plot_points_3D
 
 OBJ_FILE_1 = '../test_objects/icosphere.obj'

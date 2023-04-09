@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from littleengine.mesh import Point, Vertex, Face, Object
+from littleengine.legacy_mesh import Point, Vertex, Face, Object
 from tools import plot_points_3D
 
 def complex_edge_mesh_generator():

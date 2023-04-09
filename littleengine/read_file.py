@@ -1,5 +1,5 @@
-from littleengine.mesh import Vertex, Face, Object
-from littleengine.simple_mesh import Object as SimpleObject
+from littleengine.legacy_mesh import Vertex, Face, Object
+from littleengine.legacy_simple_mesh import Object as SimpleObject
 
 class OBJ():
   def __init__(self, name: str = None):

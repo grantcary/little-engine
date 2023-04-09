@@ -1,4 +1,4 @@
-from littleengine.mesh import Object, Group
+from littleengine.legacy_mesh import Object, Group
 
 class Scene():
   def __init__(self, name: str, objects: list[Object] = [], groups: list[Group] = []):

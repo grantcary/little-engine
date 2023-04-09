@@ -1,5 +1,5 @@
 import time
-from littleengine.mesh import Object, Point
+from littleengine.legacy_mesh import Object, Point
 
 class Animation():
   def __init__(self, frames: int, fps: int, loop: bool = False, keyframes: list[dict[str, Point]] = [], target_object: Object = None):
