@@ -1,6 +1,6 @@
 import numpy as np
 
-from mesh import Vertex, Face, Mesh
+from littleengine.mesh import Vertex, Face, Mesh
 
 def translate(m: Mesh, x, y, z):
     for v in m.vertices:

@@ -3,7 +3,7 @@ import numpy as np
 # These classes are not meant to be used directly for object creation, just containers for data.
 
 class Vertex:
-    def __init__(self, position: np.array[float]):
+    def __init__(self, position: np.ndarray):
         self.coords = position
         self.faces = []
 
