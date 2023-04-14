@@ -1,12 +1,14 @@
 from matplotlib import pyplot as plt
 import numpy as np
 
-def plot_points_3D(points: list):
+def plot_points_3D(points: list, labels : bool = False):
   fig = plt.figure()
   ax = fig.add_subplot(projection='3d')
 
-  for i in points:
-    ax.scatter(i[0], i[1], i[2], marker='o')
+  for i, p in enumerate(points):
+    ax.scatter(p[0], p[1], p[2], marker='o')
+    if labels:
+      ax.text(p[0], p[1], p[2], f'{i}, ({p[0]}, {p[1]}, {p[2]})')
 
   ax.set_xlabel('X')
   ax.set_ylabel('Y')
@@ -31,5 +33,22 @@ def plot_surface_3D(coords: list):
   # ax.plot_trisurf(x, y, z, linewidth=0.2, antialiased=True)
   ax.plot_surface(X, Y, Z, cmap='viridis', edgecolor='none')
   ax.set_aspect('equal')
+
+  plt.show()
+
+def plot_vectors_3D(vects : np.ndarray):
+  fig = plt.figure()
+  ax = fig.add_subplot(111, projection='3d')
+
+  for vector in vects:
+    ax.quiver(0, 0, 0, *vector, arrow_length_ratio=0.1)
+
+  ax.set_xlim([-1, 1])
+  ax.set_ylim([-1, 1])
+  ax.set_zlim([-1, 1])
+
+  ax.set_xlabel('X')
+  ax.set_ylabel('Y')
+  ax.set_zlabel('Z')
 
   plt.show()
