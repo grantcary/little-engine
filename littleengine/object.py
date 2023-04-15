@@ -9,3 +9,5 @@ class Object:
         v, f = OBJ().read(path)
         # TODO: run ear clipping algorithm on faces before creating mesh
         self.mesh = Mesh(v, f)
+        self.mesh.set_normals()
+        self.mesh.triangulate()

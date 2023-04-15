@@ -17,4 +17,7 @@ vertices, faces = obj.read(OBJ_FILE)
 o = sm.Mesh(vertices, faces)
 # print(o.vertices)
 o.set_normals()
-tools.plot_vectors_3D(o.normals)
+o.triangulate()
+print(o.faces)
+
+# tools.plot_vectors_3D(o.normals)

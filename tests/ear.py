@@ -43,4 +43,5 @@ def ear_clipping_triangulation_np(polygon):
         if len(indices) == 3:
             triangles.append(tuple(indices))
 
+    # assert len(triangles) == len(polygon) - 2
     return triangles

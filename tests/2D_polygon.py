@@ -10,7 +10,7 @@ import ear
 
 import numpy as np
 
-OBJ_FILE = '../test_objects/default_cube.obj'
+OBJ_FILE = '../test_objects/suzie.obj'
 
 def signed_area(polygon):
     area = 0
@@ -20,32 +20,41 @@ def signed_area(polygon):
         area += (v1[0] * v2[1] - v1[1] * v2[0])
     return 0.5 * area
 
-obj = rf.OBJ()
-vertices, faces = obj.read(OBJ_FILE)
+def poly_to_tris(poly):
+    t = []
+    for i, f in enumerate(poly.faces):
+        if poly.faces[i].shape[0] > 3:
+            v = poly.vertices[f]
+            dominant_axis = np.argmax(np.abs(poly.normals[i]))
+            V_2D = np.delete(v, dominant_axis, axis=1)
+            
+            area = signed_area(V_2D)
+            V_2D = V_2D[::-1] if area < 0 else V_2D
+
+            triangles = ear.ear_clipping_triangulation_np(V_2D)
+            for triangle in triangles:
+                t.append(f[list(triangle)])
+        else:
+            t.append(f)
+        
+    return np.array(t)
 
 # poly_v = np.array([[-1, 1, 0], [1, 1, 0], [1, 0, 1], [1, -1, 0], [-1, -1, 0], [-1, 0, 1]])
 # poly_f = np.array([[0, 1, 2, 5], [5, 2, 3, 4]])
-poly = sm.Mesh(vertices, faces)
-poly.set_normals()
 
-t = []
-for i, f in enumerate(poly.faces):
-    v = poly.vertices[f]
-    dominant_axis = np.argmax(np.abs(poly.normals[i]))
-    V_2D = np.delete(v, dominant_axis, axis=1)
-    
-    area = signed_area(V_2D)
-    V_2D = V_2D[::-1] if area < 0 else V_2D
-    
-    # print(V_2D)
+obj = rf.OBJ()
+vertices, faces = obj.read(OBJ_FILE)
 
-    triangles = ear.ear_clipping_triangulation_np(V_2D)
-    for triangle in triangles:
-        t.append(f[list(triangle)])
-print(np.array(t))
-# poly.faces = np.array(t)
-# poly.set_normals()
+mesh = sm.Mesh(vertices, faces)
+mesh.set_normals()
+
+mesh.faces = poly_to_tris(mesh)
+if len(mesh.faces[0]) > 3:
+    print(True)
+    mesh.set_normals()
+print(mesh.faces)
+
 # print(poly.normals)
 
-# tools.plot_points_3D(poly.vertices, labels=True)
+# # tools.plot_points_3D(poly.vertices, labels=True)
 # tools.plot_vectors_3D(poly.normals)
