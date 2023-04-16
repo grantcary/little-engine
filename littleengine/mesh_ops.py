@@ -15,6 +15,7 @@ class MeshOps:
         # Videos explaining the algorithm:
         # https://www.youtube.com/watch?v=QAdfkylpYwc
         # https://www.youtube.com/watch?v=hTJFcHutls8
+        # https://github.com/twobitcoder101/Polygon-Triangulation/blob/main/TriangulatePolygon.cs
 
         def signed_area(polygon):
             area = 0
@@ -56,6 +57,8 @@ class MeshOps:
           
             return triangles
         
+        self.set_normals()
+
         triangles = []
         for i, f in enumerate(self.faces):
             if len(f) > 3:
