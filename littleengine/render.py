@@ -8,7 +8,6 @@ def ray_triangle_intersection(ray_origin, ray_direction, triangle_vertices):
 
     edge1 = v1 - v0
     edge2 = v2 - v0
-
     h = np.cross(ray_direction, edge2)
     a = np.dot(edge1, h)
 
@@ -36,6 +35,15 @@ def ray_triangle_intersection(ray_origin, ray_direction, triangle_vertices):
 
     return False, None
 
+def trace(obj, ray_origin, ray_directions):
+    int_points = []
+    for ray_direction in ray_directions:
+        for triangle in obj.faces:
+            hit, intersection_point = ray_triangle_intersection(ray_origin, ray_direction, obj.vertices[triangle])
+            # print(hit, intersection_point)
+            if hit:
+                int_points.append(triangle)
+    return np.array(int_points)
 
 def camera_ray_test(cam):
     camera_distance = 1 / math.tan(math.radians(cam.fov / 2))
@@ -49,7 +57,7 @@ def camera_ray_test(cam):
         for x in range(w):
             xx = (2 * (x + 0.5) * iw - 1) * angle * cam.aspect_ratio
             yy = (1 - 2 * ((y + 0.5) * ih)) * angle
-            a = np.array([xx, -camera_distance, yy])
+            a = np.array([xx, yy, -camera_distance])
             pxarray.append(a / np.linalg.norm(a))
 
     return np.array(pxarray)
