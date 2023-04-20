@@ -1,11 +1,11 @@
 from matplotlib import pyplot as plt
 import numpy as np
 
-def plot_points_3D(points: list, labels : bool = False):
+def plot_points_3D(obj, labels : bool = False):
   fig = plt.figure()
   ax = fig.add_subplot(projection='3d')
 
-  for i, p in enumerate(points):
+  for i, p in enumerate(obj.vertices):
     ax.scatter(p[0], p[1], p[2], marker='o')
     if labels:
       ax.text(p[0], p[1], p[2], f'{i}, ({p[0]}, {p[1]}, {p[2]})')
@@ -36,11 +36,11 @@ def plot_surface_3D(coords: list):
 
   plt.show()
 
-def plot_vectors_3D(vects : np.ndarray):
+def plot_vectors_3D(obj):
   fig = plt.figure()
   ax = fig.add_subplot(111, projection='3d')
 
-  for vector in vects:
+  for vector in obj.normals:
     ax.quiver(0, 0, 0, *vector, arrow_length_ratio=0.1)
 
   ax.set_xlim([-1, 1])
