@@ -37,12 +37,19 @@ def ray_triangle_intersection(ray_origin, ray_direction, triangle_vertices):
 
 def trace(obj, ray_origin, ray_directions):
     int_points = []
-    for ray_direction in ray_directions:
-        for triangle in obj.faces:
+    for i, ray_direction in enumerate(ray_directions):
+        for j, triangle in enumerate(obj.faces):
             hit, intersection_point = ray_triangle_intersection(ray_origin, ray_direction, obj.vertices[triangle])
-            # print(hit, intersection_point)
             if hit:
-                int_points.append(triangle)
+                phit = ray_origin + ray_direction * intersection_point
+                nhit = phit - obj.normals[j]
+
+                # if np.dot(ray_direction, nhit) > 0:
+                    # nhit = -nhit
+                    # print(phit, nhit)
+
+                # int_points.append(triangle)
+                int_points.append(i)
     return np.array(int_points)
 
 def camera_ray_test(cam):
