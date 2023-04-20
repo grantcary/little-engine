@@ -1,6 +1,7 @@
 import math
 import numpy as np
 from PIL import Image
+import time
 
 def ray_triangle_intersection(ray_origin, ray_direction, triangle_vertices):
     epsilon = 1e-6
@@ -36,45 +37,64 @@ def ray_triangle_intersection(ray_origin, ray_direction, triangle_vertices):
     return False, None
 
 def trace(obj, ray_origin, ray_directions):
+    trace_test = 0
+    total_rays = len(ray_directions)
     int_points = []
     for i, ray_direction in enumerate(ray_directions):
         for j, triangle in enumerate(obj.faces):
             hit, intersection_point = ray_triangle_intersection(ray_origin, ray_direction, obj.vertices[triangle])
             if hit:
-                phit = ray_origin + ray_direction * intersection_point
-                nhit = phit - obj.normals[j]
+                # phit = ray_origin + ray_direction * intersection_point
+                # nhit = phit - obj.normals[j]
 
                 # if np.dot(ray_direction, nhit) > 0:
                     # nhit = -nhit
                     # print(phit, nhit)
 
-                # int_points.append(triangle)
                 int_points.append(i)
-    return np.array(int_points)
+        print(f'Trace pass {trace_test} of {total_rays}')
+        trace_test += 1
+    return int_points
 
-def camera_ray_test(cam):
-    camera_distance = 1 / math.tan(math.radians(cam.fov / 2))
-    ph = math.tan(math.radians(cam.fov / 2))
-    pw = ph * cam.aspect_ratio
-    angle = ph
-    h, w = 10, 10
-    ih, iw = 1/h, 1/w
-    pxarray = []
-    for y in range(h):
-        for x in range(w):
-            xx = (2 * (x + 0.5) * iw - 1) * angle * cam.aspect_ratio
-            yy = (1 - 2 * ((y + 0.5) * ih)) * angle
-            a = np.array([xx, yy, -camera_distance])
-            pxarray.append(a / np.linalg.norm(a))
+def camera_ray_test(w, h, cam):
+    aspect_ratio = w / h
+    angle = math.tan(math.radians(cam.fov / 2))
+    camera_distance = 1 / angle
 
-    return np.array(pxarray)
+    x_indices, y_indices = np.meshgrid(np.arange(w), np.arange(h))
+    xx = (2 * (x_indices + 0.5) / w - 1) * angle * aspect_ratio
+    yy = (1 - 2 * (y_indices + 0.5) / h) * angle
+    a = np.zeros((*xx.shape, 3))
+    a[:, :, 0] = xx
+    a[:, :, 1] = yy
+    a[:, :, 2] = -camera_distance
+    normalized_a = a / np.linalg.norm(a, axis=-1)[:, :, np.newaxis]
 
-def test_trace():
-    pass
+    return normalized_a.reshape(-1, 3)
 
 def render(w, h, cam, obj):
     """
     Renders an image of the object using the camera.
     """
-    ren = Image.new('L', (w, h), 0)
-    pix = ren.load()
+
+    rendered_image = Image.new('L', (w, h), 0)
+    pixel_buffer = rendered_image.load()
+
+    ray_vectors = camera_ray_test(w, h, cam).reshape(-1, 3)
+    
+    st = time.time()
+    rays_traced = trace(obj, cam.position, ray_vectors)
+    print(time.time() - st)
+
+    rays_traced = np.unique(rays_traced)
+
+    for i in range(w):
+        for j in range(h):
+            pixel_buffer[i, j] = 127
+
+    for ray in rays_traced:
+        row, col = ray // w, ray % h
+        if row < w and col < h:
+            pixel_buffer[row, col] = 255
+
+    rendered_image.show()
