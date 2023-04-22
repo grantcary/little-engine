@@ -5,7 +5,7 @@ def plot_points_3D(obj, labels : bool = False):
   fig = plt.figure()
   ax = fig.add_subplot(projection='3d')
 
-  for i, p in enumerate(obj.vertices):
+  for i, p in enumerate(obj):
     ax.scatter(p[0], p[1], p[2], marker='o')
     if labels:
       ax.text(p[0], p[1], p[2], f'{i}, ({p[0]}, {p[1]}, {p[2]})')

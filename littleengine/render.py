@@ -3,6 +3,27 @@ import numpy as np
 from PIL import Image
 import time
 
+def rotation_matrix(euler_angles):
+    rx, ry, rz = np.radians(euler_angles)
+    cos_x, sin_x = np.cos(rx), np.sin(rx)
+    cos_y, sin_y = np.cos(ry), np.sin(ry)
+    cos_z, sin_z = np.cos(rz), np.sin(rz)
+
+    Rx = np.array([[1, 0, 0],
+                [0, cos_x, -sin_x],
+                [0, sin_x, cos_x]])
+
+    Ry = np.array([[cos_y, 0, sin_y],
+                [0, 1, 0],
+                [-sin_y, 0, cos_y]])
+
+    Rz = np.array([[cos_z, -sin_z, 0],
+                [sin_z, cos_z, 0],
+                [0, 0, 1]])
+
+    R = np.dot(Rz, np.dot(Ry, Rx))
+    return R
+
 def ray_triangle_intersection(ray_origin, ray_direction, triangle_vertices):
     epsilon = 1e-6
     v0, v1, v2 = triangle_vertices
@@ -44,6 +65,8 @@ def trace(obj, ray_origin, ray_directions):
         for j, triangle in enumerate(obj.faces):
             hit, intersection_point = ray_triangle_intersection(ray_origin, ray_direction, obj.vertices[triangle])
             if hit:
+                # intersection_point -= ray_origin
+                
                 # phit = ray_origin + ray_direction * intersection_point
                 # nhit = phit - obj.normals[j]
 
@@ -62,15 +85,20 @@ def camera_ray_test(w, h, cam):
     camera_distance = 1 / angle
 
     x_indices, y_indices = np.meshgrid(np.arange(w), np.arange(h))
-    xx = (2 * (x_indices + 0.5) / w - 1) * angle * aspect_ratio
-    yy = (1 - 2 * (y_indices + 0.5) / h) * angle
-    a = np.zeros((*xx.shape, 3))
-    a[:, :, 0] = xx
-    a[:, :, 1] = yy
-    a[:, :, 2] = -camera_distance
-    normalized_a = a / np.linalg.norm(a, axis=-1)[:, :, np.newaxis]
+    normalized_x = np.interp(x_indices, (0, w-1), (-1, 1))
+    normalized_y = np.interp(y_indices, (0, h-1), (1, -1))
+    
+    xx = normalized_x * angle * aspect_ratio
+    yy = normalized_y * angle
+    cc = np.full_like(xx, camera_distance)
 
-    return normalized_a.reshape(-1, 3)
+    a = np.stack([xx, cc, yy], axis=-1)
+    ray_vectors = a / np.linalg.norm(a, axis=-1, keepdims=True)
+
+    rotation = rotation_matrix(cam.rotation)
+    rotated_ray_vectors = np.dot(ray_vectors.reshape(-1, 3), rotation.T)
+
+    return rotated_ray_vectors.reshape(-1, 3)
 
 def render(w, h, cam, obj):
     """
@@ -88,13 +116,14 @@ def render(w, h, cam, obj):
 
     rays_traced = np.unique(rays_traced)
 
+    # setup pixel buffer
     for i in range(w):
         for j in range(h):
             pixel_buffer[i, j] = 127
 
     for ray in rays_traced:
-        row, col = ray // w, ray % h
-        if row < w and col < h:
-            pixel_buffer[row, col] = 255
+        row, col = ray // w, ray % w
+        if row < h and col < w:
+            pixel_buffer[col, row] = 255
 
     rendered_image.show()
