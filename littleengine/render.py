@@ -57,7 +57,7 @@ def trace(obj, ray_origin, ray_directions):
         int_points |= hit
     return np.where(int_points)[0]
 
-def camera_ray_test(w, h, cam):
+def camera_rays(w, h, cam):
     aspect_ratio = w / h
     angle = math.tan(math.radians(cam.fov / 2))
     camera_distance = 1 / angle
@@ -87,7 +87,7 @@ def render(w, h, cam, obj):
     pixel_buffer = rendered_image.load()
 
     st = time.time()
-    ray_vectors = camera_ray_test(w, h, cam).reshape(-1, 3)
+    ray_vectors = camera_rays(w, h, cam).reshape(-1, 3)
     rays_traced = trace(obj, cam.position, ray_vectors)
     print(time.time() - st)
 

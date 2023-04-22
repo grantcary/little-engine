@@ -15,10 +15,10 @@ OBJ_FILE = '../test_objects/suzie.obj'
 obj = object.Object('Cube', OBJ_FILE)
 
 cam = camera.Camera(90, aspect_ratio=1)
-cam.translate(0, -2.5, 0)
-cam.rotation = np.array([0, 0, 0]) 
+cam.position = np.array([0, 2.5, 0])
+cam.rotation = np.array([-180, 0, 0]) 
 
-render.render(150, 125, cam, obj)
+render.render(200, 200, cam, obj)
 
 # rays = render.camera_ray_test(25, 25, cam)
 # m = mesh.Mesh(None, None, rays)
