@@ -18,7 +18,7 @@ cam = camera.Camera(90, aspect_ratio=1)
 cam.translate(0, -2.5, 0)
 cam.rotation = np.array([0, 0, 0]) 
 
-render.render(25, 25, cam, obj)
+render.render(150, 125, cam, obj)
 
 # rays = render.camera_ray_test(25, 25, cam)
 # m = mesh.Mesh(None, None, rays)

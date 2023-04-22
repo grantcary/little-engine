@@ -1,5 +1,6 @@
 import math
 import numpy as np
+from numba import njit
 from PIL import Image
 import time
 
@@ -9,75 +10,52 @@ def rotation_matrix(euler_angles):
     cos_y, sin_y = np.cos(ry), np.sin(ry)
     cos_z, sin_z = np.cos(rz), np.sin(rz)
 
-    Rx = np.array([[1, 0, 0],
-                [0, cos_x, -sin_x],
-                [0, sin_x, cos_x]])
+    Rx = np.array([[1, 0, 0], [0, cos_x, -sin_x], [0, sin_x, cos_x]])
+    Ry = np.array([[cos_y, 0, sin_y], [0, 1, 0], [-sin_y, 0, cos_y]])
+    Rz = np.array([[cos_z, -sin_z, 0], [sin_z, cos_z, 0], [0, 0, 1]])
 
-    Ry = np.array([[cos_y, 0, sin_y],
-                [0, 1, 0],
-                [-sin_y, 0, cos_y]])
+    return np.dot(Rz, np.dot(Ry, Rx))
 
-    Rz = np.array([[cos_z, -sin_z, 0],
-                [sin_z, cos_z, 0],
-                [0, 0, 1]])
-
-    R = np.dot(Rz, np.dot(Ry, Rx))
-    return R
-
-def ray_triangle_intersection(ray_origin, ray_direction, triangle_vertices):
+@njit
+def ray_triangle_intersection(ray_origin, ray_directions, triangle_vertices):
     epsilon = 1e-6
     v0, v1, v2 = triangle_vertices
 
     edge1 = v1 - v0
     edge2 = v2 - v0
-    h = np.cross(ray_direction, edge2)
-    a = np.dot(edge1, h)
+    h = np.cross(ray_directions, edge2)
+    a = np.dot(edge1, h.T)
 
-    if -epsilon < a < epsilon:
-        return False, None
-
+    parallel_mask = np.abs(a) < epsilon
     f = 1.0 / a
     s = ray_origin - v0
-    u = f * np.dot(s, h)
+    u = f * np.dot(s, h.T)
 
-    if u < 0.0 or u > 1.0:
-        return False, None
-
+    valid_u = (u >= 0) & (u <= 1)
     q = np.cross(s, edge1)
-    v = f * np.dot(ray_direction, q)
+    v = f * np.dot(ray_directions, q.T)
 
-    if v < 0.0 or u + v > 1.0:
-        return False, None
+    valid_v = (v >= 0) & (u + v <= 1)
+    t = f * np.dot(edge2, q.T)
+    valid_t = t > epsilon
 
-    t = f * np.dot(edge2, q)
+    intersection_mask = ~parallel_mask & valid_u & valid_v & valid_t
+    intersection_points = np.empty((ray_directions.shape[0], 3))
+    for i in range(ray_directions.shape[0]):
+        intersection_points[i] = ray_origin + ray_directions[i] * t[i]
 
-    if t > epsilon:
-        intersection_point = ray_origin + ray_direction * t
-        return True, intersection_point
-
-    return False, None
+    return intersection_mask, intersection_points
 
 def trace(obj, ray_origin, ray_directions):
     trace_test = 0
     total_rays = len(ray_directions)
-    int_points = []
-    for i, ray_direction in enumerate(ray_directions):
-        for j, triangle in enumerate(obj.faces):
-            hit, intersection_point = ray_triangle_intersection(ray_origin, ray_direction, obj.vertices[triangle])
-            if hit:
-                # intersection_point -= ray_origin
-                
-                # phit = ray_origin + ray_direction * intersection_point
-                # nhit = phit - obj.normals[j]
+    int_points = np.zeros(total_rays, dtype=bool)
+    triangle_vertices = obj.vertices[obj.faces]
 
-                # if np.dot(ray_direction, nhit) > 0:
-                    # nhit = -nhit
-                    # print(phit, nhit)
-
-                int_points.append(i)
-        print(f'Trace pass {trace_test} of {total_rays}')
-        trace_test += 1
-    return int_points
+    for triangle in triangle_vertices:
+        hit, _ = ray_triangle_intersection(ray_origin, ray_directions, triangle)
+        int_points |= hit
+    return np.where(int_points)[0]
 
 def camera_ray_test(w, h, cam):
     aspect_ratio = w / h
@@ -108,9 +86,8 @@ def render(w, h, cam, obj):
     rendered_image = Image.new('L', (w, h), 0)
     pixel_buffer = rendered_image.load()
 
-    ray_vectors = camera_ray_test(w, h, cam).reshape(-1, 3)
-    
     st = time.time()
+    ray_vectors = camera_ray_test(w, h, cam).reshape(-1, 3)
     rays_traced = trace(obj, cam.position, ray_vectors)
     print(time.time() - st)
 
