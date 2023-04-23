@@ -40,9 +40,7 @@ def ray_triangle_intersection(ray_origin, ray_directions, triangle_vertices):
     valid_t = t > epsilon
 
     intersection_mask = ~parallel_mask & valid_u & valid_v & valid_t
-    intersection_points = np.empty((ray_directions.shape[0], 3))
-    for i in range(ray_directions.shape[0]):
-        intersection_points[i] = ray_origin + ray_directions[i] * t[i]
+    intersection_points = ray_origin + ray_directions * t.reshape(-1, 1)
 
     return intersection_mask, intersection_points
 
@@ -87,7 +85,7 @@ def render(w, h, cam, obj):
     pixel_buffer = rendered_image.load()
 
     st = time.time()
-    ray_vectors = camera_rays(w, h, cam).reshape(-1, 3)
+    ray_vectors = camera_rays(w, h, cam)
     rays_traced = trace(obj, cam.position, ray_vectors)
     print(time.time() - st)
 
