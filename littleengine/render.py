@@ -46,15 +46,15 @@ def ray_triangle_intersection(ray_origin, ray_directions, triangle_vertices):
     
     return intersection_mask, intersection_points
 
-def trace(obj, ray_origin, ray_directions):
+def trace(scene, ray_origin, ray_directions):
     total_rays = len(ray_directions)
     int_points = np.zeros(total_rays, dtype=bool)
-    triangle_vertices = obj.vertices[obj.faces]
-
-    for triangle in triangle_vertices:
-        hit, intersection_points = ray_triangle_intersection(ray_origin, ray_directions, triangle)
-        # intersection_points -= ray_origin
-        int_points |= hit
+    for obj in scene:
+        triangle_vertices = obj.vertices[obj.faces]
+        for triangle in triangle_vertices:
+            hit, intersection_points = ray_triangle_intersection(ray_origin, ray_directions, triangle)
+            # intersection_points -= ray_origin
+            int_points |= hit
     return np.where(int_points)[0]
 
 def camera_rays(w, h, cam):
@@ -78,7 +78,7 @@ def camera_rays(w, h, cam):
 
     return rotated_ray_vectors.reshape(-1, 3)
 
-def render(w, h, cam, obj):
+def render(w, h, cam, scene):
     """
     Renders an image of the object using the camera.
     """
@@ -88,7 +88,7 @@ def render(w, h, cam, obj):
 
     st = time.time()
     ray_vectors = camera_rays(w, h, cam)
-    rays_traced = trace(obj, cam.position, ray_vectors)
+    rays_traced = trace(scene, cam.position, ray_vectors)
     print(time.time() - st)
 
     rays_traced = np.unique(rays_traced)

@@ -10,15 +10,21 @@ import littleengine.camera as camera
 import littleengine.render as render
 import tools
 
-OBJ_FILE = '../test_objects/suzie.obj'
+SUZIE = '../test_objects/suzie.obj'
+CUBE = '../test_objects/default_cube.obj'
 
-obj = object.Object('Cube', OBJ_FILE)
+scene = []
+suzie = object.Object('Monkey', SUZIE)
+cube = object.Object('Light', CUBE)
+cube.mesh.translate(0, 5, 0)
+scene.append(suzie)
+scene.append(cube)
 
 cam = camera.Camera(90, aspect_ratio=1)
-cam.position = np.array([0, 0, 5])
+cam.position = np.array([0, 0, 10])
 cam.rotation = np.array([0, 180, 0]) 
 
-render.render(200, 200, cam, obj)
+render.render(200, 200, cam, scene)
 
 # rays = render.camera_ray_test(25, 25, cam)
 # m = mesh.Mesh(None, None, rays)
