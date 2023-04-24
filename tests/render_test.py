@@ -15,8 +15,8 @@ OBJ_FILE = '../test_objects/suzie.obj'
 obj = object.Object('Cube', OBJ_FILE)
 
 cam = camera.Camera(90, aspect_ratio=1)
-cam.position = np.array([0, 2.5, 0])
-cam.rotation = np.array([-180, 0, 0]) 
+cam.position = np.array([0, 0, 5])
+cam.rotation = np.array([0, 180, 0]) 
 
 render.render(200, 200, cam, obj)
 

@@ -1,5 +1,6 @@
 from littleengine.mesh import Mesh
 from littleengine.read_file import OBJ
+import numpy as np
 
 class Object:
     # this class should contain mesh and material data
@@ -13,3 +14,5 @@ class Object:
         self.vertices = self.mesh.vertices
         self.faces = self.mesh.faces
         self.normals = self.mesh.normals
+
+        self.color = np.array([255, 255, 255])

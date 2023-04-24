@@ -1,8 +1,10 @@
 import math
-import numpy as np
-from numba import njit
-from PIL import Image
 import time
+import random
+
+import numpy as np
+from PIL import Image
+from numba import njit
 
 def rotation_matrix(euler_angles):
     rx, ry, rz = np.radians(euler_angles)
@@ -41,17 +43,17 @@ def ray_triangle_intersection(ray_origin, ray_directions, triangle_vertices):
 
     intersection_mask = ~parallel_mask & valid_u & valid_v & valid_t
     intersection_points = ray_origin + ray_directions * t.reshape(-1, 1)
-
+    
     return intersection_mask, intersection_points
 
 def trace(obj, ray_origin, ray_directions):
-    trace_test = 0
     total_rays = len(ray_directions)
     int_points = np.zeros(total_rays, dtype=bool)
     triangle_vertices = obj.vertices[obj.faces]
 
     for triangle in triangle_vertices:
-        hit, _ = ray_triangle_intersection(ray_origin, ray_directions, triangle)
+        hit, intersection_points = ray_triangle_intersection(ray_origin, ray_directions, triangle)
+        # intersection_points -= ray_origin
         int_points |= hit
     return np.where(int_points)[0]
 
@@ -68,7 +70,7 @@ def camera_rays(w, h, cam):
     yy = normalized_y * angle
     cc = np.full_like(xx, camera_distance)
 
-    a = np.stack([xx, cc, yy], axis=-1)
+    a = np.stack([xx, yy, cc], axis=-1)
     ray_vectors = a / np.linalg.norm(a, axis=-1, keepdims=True)
 
     rotation = rotation_matrix(cam.rotation)
