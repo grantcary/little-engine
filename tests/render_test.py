@@ -15,7 +15,9 @@ CUBE = '../test_objects/default_cube.obj'
 
 scene = []
 suzie = object.Object('Monkey', SUZIE)
+suzie.color = np.array([255, 0, 0])
 cube = object.Object('Light', CUBE)
+cube.color = np.array([0, 255, 0])
 cube.mesh.translate(0, 5, 0)
 scene.append(suzie)
 scene.append(cube)

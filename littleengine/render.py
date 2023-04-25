@@ -48,14 +48,20 @@ def ray_triangle_intersection(ray_origin, ray_directions, triangle_vertices):
 
 def trace(scene, ray_origin, ray_directions):
     total_rays = len(ray_directions)
-    int_points = np.zeros(total_rays, dtype=bool)
-    for obj in scene:
+    min_t_values = np.full(total_rays, np.inf)
+    object_indices = np.full(total_rays, -1, dtype=int)
+
+    for scene_index, obj in enumerate(scene):
         triangle_vertices = obj.vertices[obj.faces]
+
         for triangle in triangle_vertices:
             hit, intersection_points = ray_triangle_intersection(ray_origin, ray_directions, triangle)
-            # intersection_points -= ray_origin
-            int_points |= hit
-    return np.where(int_points)[0]
+            t_values = np.linalg.norm(intersection_points - ray_origin, axis=-1)
+            update_mask = (t_values < min_t_values) & hit
+            min_t_values[update_mask] = t_values[update_mask]
+            object_indices[update_mask] = scene_index
+
+    return min_t_values, object_indices
 
 def camera_rays(w, h, cam):
     aspect_ratio = w / h
@@ -83,24 +89,21 @@ def render(w, h, cam, scene):
     Renders an image of the object using the camera.
     """
 
-    rendered_image = Image.new('L', (w, h), 0)
+    rendered_image = Image.new('RGB', (w, h), 0)
     pixel_buffer = rendered_image.load()
 
     st = time.time()
     ray_vectors = camera_rays(w, h, cam)
-    rays_traced = trace(scene, cam.position, ray_vectors)
+    ray, object_indices = trace(scene, cam.position, ray_vectors)
     print(time.time() - st)
 
-    rays_traced = np.unique(rays_traced)
+    object_indices = object_indices.reshape(h, w)
 
-    # setup pixel buffer
     for i in range(w):
         for j in range(h):
-            pixel_buffer[i, j] = 127
-
-    for ray in rays_traced:
-        row, col = ray // w, ray % w
-        if row < h and col < w:
-            pixel_buffer[col, row] = 255
+            if object_indices[j, i] != -1:
+                pixel_buffer[i, j] = tuple(scene[object_indices[j, i]].color)
+            else:
+                pixel_buffer[i, j] = (0, 0, 0)
 
     rendered_image.show()
