@@ -12,21 +12,37 @@ import tools
 
 SUZIE = '../test_objects/suzie.obj'
 CUBE = '../test_objects/default_cube.obj'
+ICOSPHERE = '../test_objects/icosphere.obj'
 
-scene = []
+objects = []
 suzie = object.Object('Monkey', SUZIE)
+suzie.material_type = 'diffuse'
 suzie.color = np.array([255, 0, 0])
-cube = object.Object('Light', CUBE)
+suzie.translate(-2, 0, 0)
+objects.append(suzie)
+
+cube = object.Object('Cube', CUBE)
+cube.material_type = 'diffuse'
+cube.translate(2, 0, 0)
 cube.color = np.array([0, 255, 0])
-cube.mesh.translate(0, 5, 0)
-scene.append(suzie)
-scene.append(cube)
+objects.append(cube)
+
+lights = []
+ico = object.Object('Light', ICOSPHERE)
+ico.material_type = 'emissive'
+ico.translate(0, 3, 3)
+lights.append(ico)
 
 cam = camera.Camera(90, aspect_ratio=1)
-cam.position = np.array([0, 0, 10])
+cam.position = np.array([0, 0, 6])
 cam.rotation = np.array([0, 180, 0]) 
 
-render.render(200, 200, cam, scene)
+# print(len(suzie.faces) + len(cube.faces))
+
+render.render2(200, 200, cam, objects, lights)
+
+# m = mesh.Mesh(None, None, render.render2(200, 200, cam, objects, lights))
+# tools.plot_vectors_3D(m)
 
 # rays = render.camera_ray_test(25, 25, cam)
 # m = mesh.Mesh(None, None, rays)
