@@ -2,13 +2,12 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+import argparse
 import numpy as np
 
-import littleengine.mesh as mesh
 import littleengine.object as object
 import littleengine.camera as camera
 import littleengine.render as render
-import tools
 
 SUZIE = '../test_objects/suzie.obj'
 CUBE = '../test_objects/default_cube.obj'
@@ -35,15 +34,14 @@ lights.append(ico)
 
 cam = camera.Camera(90, aspect_ratio=1)
 cam.position = np.array([0, 0, 6])
-cam.rotation = np.array([0, 180, 0]) 
+cam.rotation = np.array([0, 180, 0])
 
-# print(len(suzie.faces) + len(cube.faces))
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Render Scene', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--GPU', type=str, default=False, help="Run on GPU")
+    args = parser.parse_args()
 
-render.render2(200, 200, cam, objects, lights)
-
-# m = mesh.Mesh(None, None, render.render2(200, 200, cam, objects, lights))
-# tools.plot_vectors_3D(m)
-
-# rays = render.camera_ray_test(25, 25, cam)
-# m = mesh.Mesh(None, None, rays)
-# tools.plot_vectors_3D(m)
+    if args.GPU:
+        render.render_gpu(100, 100, cam, objects, lights)
+    else:
+        render.render_cpu(200, 200, cam, objects, lights) 
