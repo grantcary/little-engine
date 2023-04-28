@@ -33,15 +33,7 @@ ico.translate(0, 3, 3)
 lights.append(ico)
 
 cam = camera.Camera(90, aspect_ratio=1)
-cam.position = np.array([0, 0, 6])
+cam.position = np.array([0, 0, 10])
 cam.rotation = np.array([0, 180, 0])
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Render Scene', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--GPU', type=str, default=False, help="Run on GPU")
-    args = parser.parse_args()
-
-    if args.GPU:
-        render.render_gpu(100, 100, cam, objects, lights)
-    else:
-        render.render_cpu(200, 200, cam, objects, lights) 
+render.render(100, 100, cam, objects, lights) 

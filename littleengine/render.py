@@ -5,7 +5,7 @@ import random
 
 import numpy as np
 from PIL import Image
-from numba import cuda, njit, float32, int32
+from numba import cuda, njit
 
 np.set_printoptions(threshold=sys.maxsize)
 
@@ -70,39 +70,7 @@ def ray_triangle_intersection(ray_origin, ray_directions, triangle_vertices):
     
     return intersection_mask, intersection_points
 
-@cuda.jit
-def trace_gpu(vertex_data, face_data, ray_origin, ray_directions, min_t_values, object_indices, tri_indices):
-    i = cuda.threadIdx.x + cuda.blockIdx.x * cuda.blockDim.x
-    if i < ray_directions.shape[0]:
-        for obj_index in range(len(vertex_data)):
-            face_indices = face_data[obj_index]
-            for tri_index in range(face_indices.shape[0]):
-                triangle = vertex_data[obj_index][face_indices[tri_index]]
-                hit, intersection_points = ray_triangle_intersection(ray_origin, ray_directions[i], triangle)
-                t_values = np.linalg.norm(intersection_points - ray_origin, axis=-1)
-                if hit:
-                    if t_values < min_t_values[i]:
-                        min_t_values[i] = t_values
-                        object_indices[i] = obj_index
-                        tri_indices[i] = tri_index
-
 def trace(objects, ray_origin, ray_directions):
-    total_rays = ray_directions.shape[0]
-    min_t_values = np.full(total_rays, np.inf)
-    object_indices = np.full(total_rays, -1, dtype=int)
-    tri_indices = np.full(total_rays, -1, dtype=int)
-
-    vertex_data = [np.array(obj.vertices, dtype=np.float32) for obj in objects]
-    face_data = [np.array(obj.faces, dtype=np.int32) for obj in objects]
-
-    threads_per_block = 128
-    blocks = (total_rays + threads_per_block - 1) // threads_per_block
-
-    trace_gpu[blocks, threads_per_block](vertex_data, face_data, ray_origin, ray_directions, min_t_values, object_indices, tri_indices)
-    
-    return min_t_values, object_indices, tri_indices
-
-def trace_cpu(objects, ray_origin, ray_directions):
     total_rays = ray_directions.shape[0]
     min_t_values = np.full(total_rays, np.inf)
     object_indices = np.full(total_rays, -1, dtype=int)
@@ -122,33 +90,7 @@ def trace_cpu(objects, ray_origin, ray_directions):
 
     return min_t_values, object_indices, tri_indices
 
-def shade_gpu(objects, lights, intersection_points, object_indices):
-    n = intersection_points.shape[0]
-    hit_colors = np.zeros((n, 3))
-    shadow_hit = np.full(n, np.inf)
-    o_i = np.full(n, -1, dtype=int)
-    inShadow = np.zeros(n, dtype=bool)
-
-    for light in lights:
-        light_directions = light.position - intersection_points
-        len2 = np.sum(light_directions * light_directions, axis=-1)
-        normalized_light_directions = light_directions / np.sqrt(len2).reshape(-1, 1)
-
-        for i in range(n):
-            shadow_ray_t, shadow_ray_indices, _ = trace_cpu(objects, intersection_points[i], normalized_light_directions)
-            shadow_hit[i] = shadow_ray_t[i]
-            o_i[i] = shadow_ray_indices[i]
-            truth = (shadow_ray_indices != -1) & (shadow_ray_t * shadow_ray_t < len2[i])
-            inShadow[i] = truth[i]
-
-        for i in range(n):
-            obj = objects[object_indices[i]]
-            if not inShadow[i]:
-                hit_colors[i] = obj.color * (1 - inShadow[i])
-
-    return hit_colors
-
-def shade_cpu(objects, lights, intersection_points, object_indices):
+def shade(objects, lights, intersection_points, object_indices):
     n = intersection_points.shape[0]
     hit_colors = np.zeros((n, 3))
 
@@ -157,7 +99,7 @@ def shade_cpu(objects, lights, intersection_points, object_indices):
         len2 = np.sum(light_directions * light_directions, axis=-1)
         normalized_light_directions = light_directions / np.sqrt(len2).reshape(-1, 1)
 
-        shadow_ray_t, shadow_ray_indices, _ = trace_cpu(objects, intersection_points, normalized_light_directions)
+        shadow_ray_t, shadow_ray_indices, _ = trace(objects, intersection_points, normalized_light_directions)
 
         shadow_ray_len2 = shadow_ray_t * shadow_ray_t
         isInShadow = (shadow_ray_indices != -1) & (shadow_ray_len2 < len2)
@@ -169,7 +111,7 @@ def shade_cpu(objects, lights, intersection_points, object_indices):
 
     return hit_colors
 
-def render_gpu(w, h, cam, objects, lights):
+def render(w, h, cam, objects, lights):
     ray_vectors = camera_rays(w, h, cam)
     st = time.time()
     min_t_values, object_indices, _ = trace(objects, cam.position, ray_vectors)
@@ -179,26 +121,7 @@ def render_gpu(w, h, cam, objects, lights):
     valid_intersection_mask = object_indices != -1
 
     st = time.time()
-    hit_colors = shade_gpu(objects, lights, intersection_points[valid_intersection_mask], object_indices[valid_intersection_mask])
-    print('Diffuse Ray Cast:', time.time() - st)
-
-    hit_color_image = np.full((h, w, 3), [6, 20, 77] , dtype=np.uint8)
-    hit_color_image[valid_intersection_mask.reshape(h, w)] = hit_colors
-    rendered_image = Image.fromarray(hit_color_image, 'RGB')
-
-    rendered_image.show()
-
-def render_cpu(w, h, cam, objects, lights):
-    ray_vectors = camera_rays(w, h, cam)
-    st = time.time()
-    min_t_values, object_indices, _ = trace_cpu(objects, cam.position, ray_vectors)
-    print('Primary Ray Cast:', time.time() - st)            
-
-    intersection_points = cam.position + ray_vectors * min_t_values.reshape(-1, 1)
-    valid_intersection_mask = object_indices != -1
-
-    st = time.time()
-    hit_colors = shade_cpu(objects, lights, intersection_points[valid_intersection_mask], object_indices[valid_intersection_mask])
+    hit_colors = shade(objects, lights, intersection_points[valid_intersection_mask], object_indices[valid_intersection_mask])
     print('Diffuse Ray Cast:', time.time() - st)
 
     hit_color_image = np.full((h, w, 3), [6, 20, 77] , dtype=np.uint8)

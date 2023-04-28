@@ -1,6 +1,7 @@
 # little-engine
 Little 3D graphics engine
 
-Written for noobs, by a noob.
+Written by a complete noob with very basic understanding of computer graphics
 
-This is a toy version of a raytracer meant for educational purposes only (this is written in python after all). Extremely slow rendering speeds, however, the code should present it self in a simple to understand manner to learn from.
+Main Goal: Write the fastest python raytracer with scalability and flexability in mind
+Current Progress: Still very slow, getting a feel for how to approach the next step in speed
