@@ -3,8 +3,6 @@ from littleengine.read_file import OBJ
 import numpy as np
 
 class Object:
-    # this class should contain mesh and material data
-    # DO NOT LET THIS CLASS BECOME BLOATED
     def __init__(self, name: str = None, path: str = None):
         self.name = name
         self.position = np.array([0.0, 0.0, 0.0])

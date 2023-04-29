@@ -6,7 +6,7 @@ import numpy as np
 
 import littleengine.object as object
 import littleengine.camera as camera
-import littleengine.render as render
+import littleengine.render_gpu as render_gpu
 
 SUZIE = '../test_objects/suzie.obj'
 CUBE = '../test_objects/default_cube.obj'
@@ -35,4 +35,4 @@ cam = camera.Camera(90, aspect_ratio=1)
 cam.position = np.array([0, 0, 10])
 cam.rotation = np.array([0, 180, 0])
 
-render.render(100, 100, cam, objects, lights) 
+render_gpu.render(100, 100, cam, objects, lights)

@@ -1,11 +1,10 @@
 import sys
 import math
 import time
-import random
 
 import numpy as np
 from PIL import Image
-from numba import cuda, njit
+from numba import njit
 
 np.set_printoptions(threshold=sys.maxsize)
 
@@ -112,7 +111,10 @@ def shade(objects, lights, intersection_points, object_indices):
     return hit_colors
 
 def render(w, h, cam, objects, lights):
+    st = time.time()
     ray_vectors = camera_rays(w, h, cam)
+    print('Camera Ray Cast:', time.time() - st)
+    
     st = time.time()
     min_t_values, object_indices, _ = trace(objects, cam.position, ray_vectors)
     print('Primary Ray Cast:', time.time() - st)            
