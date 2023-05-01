@@ -6,7 +6,10 @@ import numpy as np
 from PIL import Image
 from numba import njit
 
-np.set_printoptions(threshold=sys.maxsize)
+# np.set_printoptions(threshold=sys.maxsize)
+
+def bounding_volume_hierarchy(objects):
+    pass
 
 def rotation_matrix(euler_angles):
     rx, ry, rz = np.radians(euler_angles)
