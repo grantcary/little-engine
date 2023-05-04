@@ -8,9 +8,6 @@ from numba import njit
 
 # np.set_printoptions(threshold=sys.maxsize)
 
-def bounding_volume_hierarchy(objects):
-    pass
-
 def rotation_matrix(euler_angles):
     rx, ry, rz = np.radians(euler_angles)
     cos_x, sin_x = np.cos(rx), np.sin(rx)
