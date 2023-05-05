@@ -24,5 +24,5 @@ cube.translate(2, 0, 0)
 cube.color = np.array([0, 255, 0])
 objects.append(cube)
 
-d, c = bvh.bounding_box_generator(cube)
+d, c = bvh.bounding_box_generator(cube.vertices)
 bb = bvh.Bounding_Box(*d, c)
