@@ -79,14 +79,14 @@ def shade(objects, lights, intersection_points, object_indices):
 
 def render(w, h, cam, objects, lights):
     st = time.time()
-    ray_vectors = cam.primary_rays(w, h)
-    print('Camera Ray Cast:', time.time() - st)
+    primary_rays = cam.primary_rays(w, h)
+    print('Generate Primary Rays:', time.time() - st)
     
     st = time.time()
-    min_t_values, object_indices, _ = trace(objects, cam.position, ray_vectors)
+    min_t_values, object_indices, _ = trace(objects, cam.position, primary_rays)
     print('Primary Ray Cast:', time.time() - st)            
 
-    intersection_points = cam.position + ray_vectors * min_t_values.reshape(-1, 1)
+    intersection_points = cam.position + primary_rays * min_t_values.reshape(-1, 1)
     valid_intersection_mask = object_indices != -1
 
     st = time.time()

@@ -34,7 +34,6 @@ cam = camera.Camera(90, aspect_ratio=1)
 cam.position = np.array([0, 0, 3])
 cam.rotation = np.array([0, 180, 0])
 
-w, h = 100, 100
-cam_rays = cam.primary_rays(w, h)
+cam_rays = cam.primary_rays(100, 100)
 
-h = bvh.bvh_generator(objects)
+h = bvh.bounding_volume_hierarchy(objects)

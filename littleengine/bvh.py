@@ -21,8 +21,5 @@ class Bounding_Box():
 
         return None if tmax < 0 or tmin > tmax else tmin
 
-def bvh_generator(scene):
-    pass
-
-def bounding_volume_hierarchy(objects):
+def bounding_volume_hierarchy(scene) -> BVH:
     pass
