@@ -36,11 +36,11 @@ def plot_surface_3D(coords: list):
 
   plt.show()
 
-def plot_vectors_3D(obj):
+def plot_vectors_3D(vectors):
   fig = plt.figure()
   ax = fig.add_subplot(111, projection='3d')
 
-  for vector in obj.normals:
+  for vector in vectors:
     ax.quiver(0, 0, 0, *vector, arrow_length_ratio=0.1)
 
   ax.set_xlim([-1, 1])

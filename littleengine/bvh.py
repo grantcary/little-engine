@@ -11,46 +11,18 @@ class BVH():
         self.right : BVH = right
 
 class Bounding_Box():
-    def __init__(self, bounds):
-        self.bounds = bounds
+    def __init__(self, vertices):
+        self.bounds = np.vstack([np.array([vertices.max(axis=0), vertices.min(axis=0)]).T])
 
     def intersect(self, ray_origin, ray_direction):
         invdir = 1 / ray_direction
-        flipped_axes = np.argwhere(invdir < 0).flatten()
-        self.bounds[flipped_axes] = self.bounds[flipped_axes, ::-1]
-
-        mm = (self.bounds - ray_origin.reshape(3, 1)) * invdir.reshape(3, 1)
-        tmin, tmax, tymin, tymax, tzmin, tzmax = mm.flatten()
-
-        if (tmin > tymax) or (tymin > tmax):
-            return None
+        tx = (self.bounds - ray_origin.reshape(3, 1)) * invdir.reshape(3, 1)
+        t1, t2, t3, t4, t5, t6 = tx.flatten()
         
-        if tymin > tmin:
-            tmin = tymin
-        if tymax < tmax:
-            tmax = tymax
+        tmin = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
+        tmax = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
 
-        if (tmin > tzmax) or (tzmin > tmax):
-            return None
-        
-        if tzmin > tmin:
-            tmin = tzmin
-        if tzmax < tmax:
-            tmax = tzmax
-
-        t = tmin
-
-        if t < 0:
-            t = tmax
-            if t < 0:
-                return None
-        
-        return t
-
-def bounds_generator(vertices):
-    return np.vstack([np.array([vertices.max(axis=0), vertices.min(axis=0)]).T])
-    # dimensions = np.abs(xyz_mm[:, 1] - xyz_mm[:, 0])
-    # center = (xyz_mm[:, 1] + xyz_mm[:, 0]) / 2
+        return None if tmax < 0 or tmin > tmax else tmin
 
 def bounding_volume_hierarchy(objects):
     pass
