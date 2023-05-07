@@ -1,7 +1,4 @@
 import numpy as np
-from numba import njit
-
-import littleengine.mesh as mesh
 
 class BVH():
     def __init__(self, object_indices, triangle_indices, left = None, right = None):
@@ -23,6 +20,9 @@ class Bounding_Box():
         tmax = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
 
         return None if tmax < 0 or tmin > tmax else tmin
+
+def bvh_generator(scene):
+    pass
 
 def bounding_volume_hierarchy(objects):
     pass

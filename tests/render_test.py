@@ -32,7 +32,7 @@ ico.translate(0, 3, 3)
 lights.append(ico)
 
 cam = camera.Camera(90, aspect_ratio=1)
-cam.position = np.array([0, 0, 3])
+cam.position = np.array([0, 0, 10])
 cam.rotation = np.array([0, 180, 0])
 
 render.render(100, 100, cam, objects, lights) 

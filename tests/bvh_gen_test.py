@@ -17,10 +17,18 @@ SUZIE = '../test_objects/suzie.obj'
 CUBE = '../test_objects/default_cube.obj'
 ICOSPHERE = '../test_objects/icosphere.obj'
 
+objects = []
 suzie = object.Object('Monkey', SUZIE)
 suzie.material_type = 'diffuse'
 suzie.color = np.array([255, 0, 0])
-# suzie.translate(-2, 0, 0)
+suzie.translate(-2, 0, 0)
+objects.append(suzie)
+
+cube = object.Object('Cube', CUBE)
+cube.material_type = 'diffuse'
+cube.translate(2, 0, 0)
+cube.color = np.array([0, 255, 0])
+objects.append(cube)
 
 cam = camera.Camera(90, aspect_ratio=1)
 cam.position = np.array([0, 0, 3])
@@ -29,19 +37,4 @@ cam.rotation = np.array([0, 180, 0])
 w, h = 100, 100
 cam_rays = cam.primary_rays(w, h)
 
-bb = bvh.Bounding_Box(suzie.vertices)
-
-# hit1 = np.array([])
-# for ray_direction in cam_rays:
-#     t = bb.intersect(cam.position, ray_direction)
-#     if t != None:
-#         phit = cam.position + ray_direction * t
-#         hit1 = np.append(hit1, phit)
-
-img = np.full((h, w), 0 , dtype=np.uint8)
-for i, ray_direction in enumerate(cam_rays):
-    row, col = i // w, i % w
-    img[row, col] = 255 if bb.intersect(cam.position, ray_direction) != None else 127
-
-rendered_image = Image.fromarray(img, 'L')
-rendered_image.show()
+h = bvh.bvh_generator(objects)
