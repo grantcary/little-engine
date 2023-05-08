@@ -1,3 +1,5 @@
+import sys
+import math
 import time
 
 import numpy as np
@@ -87,12 +89,11 @@ def render(w, h, cam, objects, lights):
     intersection_points = cam.position + primary_rays * min_t_values.reshape(-1, 1)
     valid_intersection_mask = object_indices != -1
 
-    st = time.time()
-    hit_colors = shade(objects, lights, intersection_points[valid_intersection_mask], object_indices[valid_intersection_mask])
-    print('Diffuse Ray Cast:', time.time() - st)
+    img = np.full((h, w, 3), [6, 20, 77] , dtype=np.uint8)
+    for i in range(primary_rays.shape[0]):
+        row, col = i // w, i % w
+        img[row, col] = objects[object_indices[i]].color if object_indices[i] != -1 else [6, 20, 77]
 
-    hit_color_image = np.full((h, w, 3), [6, 20, 77] , dtype=np.uint8)
-    hit_color_image[valid_intersection_mask.reshape(h, w)] = hit_colors
-    rendered_image = Image.fromarray(hit_color_image, 'RGB')
+    rendered_image = Image.fromarray(img, 'RGB')
 
     rendered_image.show()

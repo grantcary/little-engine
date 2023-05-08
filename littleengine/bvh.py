@@ -1,15 +1,18 @@
 import numpy as np
 
 class BVH():
-    def __init__(self, object_indices, triangle_indices, left = None, right = None):
-        self.object_indices   : np.array[np.array[int]] = object_indices
-        self.triangle_indices : np.array[np.array[int]] = triangle_indices
-        self.left  : BVH = left
-        self.right : BVH = right
+    def __init__(self, bounding_box, object_index = None, left = None, right = None):
+        self.bounding_box = bounding_box
+        self.object_indices = object_index
+        self.left = left
+        self.right = right
 
 class Bounding_Box():
-    def __init__(self, vertices):
-        self.bounds = np.vstack([np.array([vertices.max(axis=0), vertices.min(axis=0)]).T])
+    def __init__(self, vertices = None, bounds = None):
+        self.bounds = self.get_bounds(vertices) if isinstance(vertices, np.ndarray) else bounds
+
+    def get_bounds(self, vertices):
+        return np.vstack([np.array([vertices.max(axis=0), vertices.min(axis=0)]).T])
 
     def intersect(self, ray_origin, ray_direction):
         invdir = 1 / ray_direction

@@ -9,7 +9,7 @@ from PIL import Image
 
 import littleengine.object as object
 import littleengine.camera as camera
-import littleengine.render as render
+import littleengine.render2 as render2
 import littleengine.bvh as bvh
 import tools
 
@@ -30,10 +30,15 @@ cube.translate(2, 0, 0)
 cube.color = np.array([0, 255, 0])
 objects.append(cube)
 
+lights = []
+ico = object.Object('Light', ICOSPHERE)
+ico.material_type = 'emissive'
+ico.translate(0, 3, 3)
+lights.append(ico)
+
 cam = camera.Camera(90, aspect_ratio=1)
 cam.position = np.array([0, 0, 3])
 cam.rotation = np.array([0, 180, 0])
 
-cam_rays = cam.primary_rays(100, 100)
-
-h = bvh.bounding_volume_hierarchy(objects)
+render2.render(100, 100, cam, objects, lights)
+# h = bvh.bounding_volume_hierarchy(objects)
