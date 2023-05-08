@@ -77,23 +77,46 @@ def shade(objects, lights, intersection_points, object_indices):
 
     return hit_colors
 
-def render(w, h, cam, objects, lights):
+def render(w, h, cam, bvh, objects, lights):
     st = time.time()
     primary_rays = cam.primary_rays(w, h)
     print('Generate Primary Rays:', time.time() - st)
     
     st = time.time()
-    min_t_values, object_indices, _ = trace(objects, cam.position, primary_rays)
-    print('Primary Ray Cast:', time.time() - st)            
+    primary_mask = np.full(primary_rays.shape[0], -1, dtype=int)
+    for i, ray in enumerate(primary_rays):
+        search = bvh.search_collision(cam.position, ray)
+        if search is not None:
+            primary_mask[i] = i
 
-    intersection_points = cam.position + primary_rays * min_t_values.reshape(-1, 1)
-    valid_intersection_mask = object_indices != -1
+    mask = np.where(primary_mask != -1)
+    filtered_rays = primary_rays[mask]
+    print('Cull Rays:', time.time() - st)
 
-    img = np.full((h, w, 3), [6, 20, 77] , dtype=np.uint8)
-    for i in range(primary_rays.shape[0]):
-        row, col = i // w, i % w
-        img[row, col] = objects[object_indices[i]].color if object_indices[i] != -1 else [6, 20, 77]
+    st = time.time()
+    min_t_values, object_indices, _ = trace(objects, cam.position, filtered_rays)
+    print('Primary Ray Cast:', time.time() - st)   
 
-    rendered_image = Image.fromarray(img, 'RGB')
+    # img = np.full((w, h), 0, dtype=np.uint8)
+    # st = time.time()
+    # for i, ray in enumerate(primary_rays):
+    #     row, col = i // w, i % w
+    #     search = scene.search_collision(cam.position, ray)
+    #     # print(search)
+    #     img[row, col] = 255 if search != None else 127
+    # print(time.time() - st)
 
-    rendered_image.show()
+    # rendered_image = Image.fromarray(img, 'L')
+    # rendered_image.show()
+
+    # for ray in primary_rays:
+        
+
+    # img = np.full((h, w, 3), [6, 20, 77] , dtype=np.uint8)
+    # for i in range(primary_rays.shape[0]):
+    #     row, col = i // w, i % w
+    #     img[row, col] = objects[object_indices[i]].color if object_indices[i] != -1 else [6, 20, 77]
+
+    # rendered_image = Image.fromarray(img, 'RGB')
+
+    # rendered_image.show()

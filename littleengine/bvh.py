@@ -3,9 +3,18 @@ import numpy as np
 class BVH():
     def __init__(self, bounding_box, object_index = None, left = None, right = None):
         self.bounding_box = bounding_box
-        self.object_indices = object_index
+        self.object_index = object_index
         self.left = left
         self.right = right
+
+    def search_collision(self, ray_origin, ray_direction):
+        intersection = self.bounding_box.intersect(ray_origin, ray_direction)
+        if intersection is None:
+            return None
+        elif self.left is None and self.right is None and self.object_index is not None:
+            return intersection
+        
+        return self.left.search_collision(ray_origin, ray_direction) or self.right.search_collision(ray_origin, ray_direction)
 
 class Bounding_Box():
     def __init__(self, vertices = None, bounds = None):
