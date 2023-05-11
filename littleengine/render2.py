@@ -108,15 +108,3 @@ def render(w, h, cam, bvh, objects, lights):
 
     # rendered_image = Image.fromarray(img, 'L')
     # rendered_image.show()
-
-    # for ray in primary_rays:
-        
-
-    # img = np.full((h, w, 3), [6, 20, 77] , dtype=np.uint8)
-    # for i in range(primary_rays.shape[0]):
-    #     row, col = i // w, i % w
-    #     img[row, col] = objects[object_indices[i]].color if object_indices[i] != -1 else [6, 20, 77]
-
-    # rendered_image = Image.fromarray(img, 'RGB')
-
-    # rendered_image.show()

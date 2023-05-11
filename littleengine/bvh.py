@@ -1,17 +1,18 @@
 import numpy as np
 
 class BVH():
-    def __init__(self, bounding_box, object_index = None, left = None, right = None):
+    def __init__(self, bounding_box, object_index = None, left = None, right = None, leaf = False):
         self.bounding_box = bounding_box
         self.object_index = object_index
         self.left = left
         self.right = right
+        self.leaf = leaf
 
     def search_collision(self, ray_origin, ray_direction):
         intersection = self.bounding_box.intersect(ray_origin, ray_direction)
         if intersection is None:
             return None
-        elif self.left is None and self.right is None and self.object_index is not None:
+        elif self.leaf == True:
             return intersection
         
         return self.left.search_collision(ray_origin, ray_direction) or self.right.search_collision(ray_origin, ray_direction)

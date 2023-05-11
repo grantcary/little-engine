@@ -46,8 +46,8 @@ primary_rays = cam.primary_rays(w, h)
 # render2.render(100, 100, cam, objects, lights)
 # h = bvh.bounding_volume_hierarchy(objects)
 
-s = BVH(Bounding_Box(suzie.vertices), 0)
-c = BVH(Bounding_Box(cube.vertices), 1)
+s = BVH(Bounding_Box(suzie.vertices), 0, leaf=True)
+c = BVH(Bounding_Box(cube.vertices), 1, leaf=True)
 
 # TODO: turn this into function
 e = np.full((2, 3, 2), 0, dtype=float)
