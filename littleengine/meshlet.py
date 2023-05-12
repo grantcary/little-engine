@@ -1,3 +1,4 @@
+import time
 import math
 
 import numpy as np
@@ -28,35 +29,12 @@ def generate_triangle_adjacency(object):
 
     return counts, offsets, data
 
-# def get_neighbors(triangle_indices, counts, offsets, data):
-#     neighbors = []
-
-#     for i in range(triangle_indices.shape[0]):
-#         for j in range(3):
-#             triangle = triangle_indices[i]
-#             vertex = data[triangle * 3 + j]
-#             print(triangle)
-#             print(vertex)
-#             print(triangle.shape, vertex.shape)
-
-#             for k in range(counts[vertex]):
-#                 neighbor = data[offsets[vertex] + k]
-#                 if neighbor != triangle:
-#                     neighbors.append(neighbor)
-
-#     return np.unique(neighbors)
-
 def get_neighbors(object, triangle_index, counts, offsets, data):
     vertices = object.faces[triangle_index].flatten()
-    adjacent_triangles = []
-    print(vertices)
-    for vertex in vertices:
-        start = offsets[vertex]
-        count = counts[vertex]
-        print(start, count)
-        adjacent_triangles += list(data[start:start+count])
-    adjacent_triangles = list(set(adjacent_triangles))
-    adjacent_triangles.remove(triangle_index)
+    data_slices = [data[start:start+count] for start, count in zip(offsets[vertices], counts[vertices])]
+    adjacent_triangles = np.concatenate(data_slices)
+    adjacent_triangles = np.unique(adjacent_triangles)
+    adjacent_triangles = np.delete(adjacent_triangles, np.argwhere(adjacent_triangles == triangle_index))
     return adjacent_triangles
 
 def compute_triangle_cones(object): 
@@ -118,9 +96,6 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126):
         # Add triangles to meshlet until it is full
         while len(available_triangles) > 0 and num_vertices < max_vertices and len(meshlet.triangle_indices) < max_triangles:
             neighbors = get_neighbors(object, meshlet.triangle_indices, counts, offsets, data)
-            print(neighbors)
-
-
 
         #     # Compute score for each neighboring triangle
         #     scores = compute_triangle_scores(object, neighbors, meshlet_vertices, cone_origin, cone_axis, cone_angle, tree)
