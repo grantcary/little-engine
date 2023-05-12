@@ -3,13 +3,16 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import time
+import math
 
 import numpy as np
 from PIL import Image
 from scipy.spatial import cKDTree
 
+np.set_printoptions(threshold=sys.maxsize)
+
 import littleengine.object as object
-from littleengine.meshlet import generate_triangle_adjacency, compute_triangle_cones
+from littleengine.meshlet import meshlet_gen, generate_triangle_adjacency
 import tools
 
 SUZIE = '../test_objects/suzie.obj'
@@ -18,9 +21,6 @@ ICOSPHERE = '../test_objects/icosphere.obj'
 
 suzie = object.Object('Monkey', SUZIE)
 
-t, n, a = compute_triangle_cones(suzie.vertices, suzie.faces)
-
-# print(kdtreeBuild(suzie.vertices))
-# BUILD KDTREE
-# distance, index = cKDTree(suzie.vertices).query(np.array([0.5, 0.5, 0.5]))
-# print(distance, index, suzie.vertices[index])
+st = time.time()
+meshlet_gen(suzie)
+print(time.time() - st)
