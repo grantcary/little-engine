@@ -1,5 +1,5 @@
 import time
-import math
+from math import sqrt
 
 import numpy as np
 from scipy.spatial import cKDTree
@@ -63,13 +63,25 @@ def compute_meshlet_cone(meshlet):
     meshlet.centroid *= center_scale
 
     axis_length = np.sum(meshlet.normal * meshlet.normal)
-    axis_scale = 0.0 if axis_length == 0.0 else 1.0 / math.sqrt(axis_length)
+    axis_scale = 0.0 if axis_length == 0.0 else 1.0 / sqrt(axis_length)
     meshlet.normal *= axis_scale
 
+def get_meshlet_score(distance2, spread, cone_weight, expected_radius):
+    cone = 1.0 - spread * cone_weight
+    cone_clamped = 1e-3 if cone < 1e-3 else cone
+
+    return (1 + sqrt(distance2) / expected_radius * (1 - cone_weight)) * cone_clamped
+
+def compute_triangle_scores():
+    pass
 
 def meshlet_gen(object, max_vertices=64, max_triangles=126):
     counts, offsets, data = generate_triangle_adjacency(object)
     centroids, normals, mesh_area = compute_triangle_cones(object)
+
+    cone_weight = 0.0
+    triangle_average_area = 0.0 if object.faces.shape[0] == 0 else mesh_area / float(object.faces.shape[0]) * 0.5
+    meshtlet_expected_radius = sqrt(triangle_average_area * max_triangles) * 0.5
 
     cones = np.hstack((centroids, normals))
     tree = cKDTree(cones)
@@ -97,8 +109,7 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126):
         while len(available_triangles) > 0 and num_vertices < max_vertices and len(meshlet.triangle_indices) < max_triangles:
             neighbors = get_neighbors(object, meshlet.triangle_indices, counts, offsets, data)
 
-        #     # Compute score for each neighboring triangle
-        #     scores = compute_triangle_scores(object, neighbors, meshlet_vertices, cone_origin, cone_axis, cone_angle, tree)
+            scores = compute_triangle_scores(object, neighbors, meshlet_vertices, cone_origin, cone_axis, cone_angle, tree)
 
         #     # Select triangle with the highest score and add it to the meshlet
         #     selected_triangle = neighbors[np.argmax(scores)]
