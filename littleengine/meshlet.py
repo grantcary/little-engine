@@ -10,6 +10,16 @@ class Meshlet():
         self.centroid = centroid
         self.normal = normal
 
+    def compute_cone(self):
+        triangle_count = len(self.meshlet.triangle_indices)
+
+        center_scale = 0.0 if triangle_count == 0 else 1.0 / float(triangle_count)
+        self.meshlet.centroid *= center_scale
+
+        axis_length = np.sum(self.meshlet.normal * self.meshlet.normal)
+        axis_scale = 0.0 if axis_length == 0.0 else 1.0 / sqrt(axis_length)
+        self.meshlet.normal *= axis_scale
+
 def generate_triangle_adjacency(object):
     counts = np.bincount(object.faces.flatten(), minlength=object.vertices.shape[0])
     offsets = np.hstack(([0], np.cumsum(counts[:-1])))
@@ -52,28 +62,29 @@ def compute_triangle_cones(object):
     centroids = (v0 + v1 + v2 / 3.0).reshape(object.faces.shape)
     normals = normal * invarea[:, np.newaxis]
     
-    mesh_area = sum(area)
+    mesh_area = np.sum(area)
         
     return centroids, normals, mesh_area
 
-def compute_meshlet_cone(meshlet):
-    triangle_count = meshlet.triangle_indices.shape[0]
-
-    center_scale = 0.0 if triangle_count == 0 else 1.0 / float(triangle_count)
-    meshlet.centroid *= center_scale
-
-    axis_length = np.sum(meshlet.normal * meshlet.normal)
-    axis_scale = 0.0 if axis_length == 0.0 else 1.0 / sqrt(axis_length)
-    meshlet.normal *= axis_scale
-
 def get_meshlet_score(distance2, spread, cone_weight, expected_radius):
     cone = 1.0 - spread * cone_weight
-    cone_clamped = 1e-3 if cone < 1e-3 else cone
+    # cone_clamped = 1e-3 if cone < 1e-3 else cone
+    cone_clamped = np.where(cone < 1e-3, 1e-3, cone)
 
-    return (1 + sqrt(distance2) / expected_radius * (1 - cone_weight)) * cone_clamped
+    return (1 + np.sqrt(distance2) / expected_radius * (1 - cone_weight)) * cone_clamped
 
-def compute_triangle_scores():
-    pass
+def compute_triangle_scores(meshlet, neighbors, live_triangles, used_vertices, expected_radius, cone_weight, centroids, normals, topo_priority=False):
+    extras = sum(used_vertices[neighbors], axis=1)
+    non_zero = np.where(extras != 0)
+
+
+    if topo_priority:
+        # it is not available_triangles, just place holder
+        scores = np.sum(live_triangles[neighbors]) - 3
+    else:
+        distances2 = np.sum(np.square(centroids[neighbors] - meshlet.centroid), axis=1)
+        spreads = np.sum(normals[neighbors] * meshlet.normal, axis=1)
+        scores = get_meshlet_score(distances2, spreads, cone_weight, expected_radius)
 
 def meshlet_gen(object, max_vertices=64, max_triangles=126):
     counts, offsets, data = generate_triangle_adjacency(object)
@@ -88,7 +99,9 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126):
 
     meshlets = []
     available_triangles = np.arange(object.faces.shape[0])
-    
+    live_triangles = np.full(len(object.faces), 0, dtype=int)
+    used_vertices = np.full(len(object.vertices), 0, dtype=int)
+
     meshlet_triangles = 0
 
     while len(available_triangles) > 0:
@@ -99,17 +112,16 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126):
         meshlet.triangle_indices = np.append(meshlet.triangle_indices, start_triangle)
         meshlet.centroid = centroids[start_triangle]
         meshlet.normal = normals[start_triangle]
-
-        compute_meshlet_cone(meshlet)
-        # print(centroids[start_triangle], normals[start_triangle])
-        # print(meshlet.centroid, meshlet.normal)
+        meshlet.compute_cone()
 
         num_vertices = 0
         # Add triangles to meshlet until it is full
         while len(available_triangles) > 0 and num_vertices < max_vertices and len(meshlet.triangle_indices) < max_triangles:
-            neighbors = get_neighbors(object, meshlet.triangle_indices, counts, offsets, data)
+            neighbors = get_neighbors(object, start_triangle, counts, offsets, data)
 
-            scores = compute_triangle_scores(object, neighbors, meshlet_vertices, cone_origin, cone_axis, cone_angle, tree)
+            scores = compute_triangle_scores(meshlet, neighbors, live_triangles, used_vertices, meshtlet_expected_radius, cone_weight, centroids, normals, True)
+
+            # scores = compute_triangle_scores(object, neighbors, meshlet_vertices, cone_origin, cone_axis, cone_angle, tree)
 
         #     # Select triangle with the highest score and add it to the meshlet
         #     selected_triangle = neighbors[np.argmax(scores)]
