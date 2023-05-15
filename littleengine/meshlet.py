@@ -75,8 +75,9 @@ def get_meshlet_score(distance2, spread, cone_weight, expected_radius):
 
 def compute_triangle_scores(meshlet, neighbors, live_triangles, used_vertices, expected_radius, cone_weight, centroids, normals, topo_priority=False):
     extras = sum(used_vertices[neighbors], axis=1)
-    non_zero = np.where(extras != 0)
-
+    extras[~live_triangles] = 0
+    has_live_vertex = np.logical_or.reduce(live_triangles, axis=1)
+    extras[has_live_vertex] += 1
 
     if topo_priority:
         # it is not available_triangles, just place holder
@@ -99,7 +100,7 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126):
 
     meshlets = []
     available_triangles = np.arange(object.faces.shape[0])
-    live_triangles = np.full(len(object.faces), 0, dtype=int)
+    live_triangles = counts.copy()
     used_vertices = np.full(len(object.vertices), 0, dtype=int)
 
     meshlet_triangles = 0
