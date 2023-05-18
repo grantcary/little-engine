@@ -43,8 +43,7 @@ def generate_triangle_adjacency(object):
 def get_neighbors(object, triangle_index, counts, offsets, data):
     vertices = object.faces[triangle_index].flatten()
     data_slices = [data[start:start+count] for start, count in zip(offsets[vertices], counts[vertices])]
-    adjacent_triangles = np.concatenate(data_slices)
-    adjacent_triangles = np.unique(adjacent_triangles)
+    adjacent_triangles = np.unique(np.concatenate(data_slices))
     adjacent_triangles = np.delete(adjacent_triangles, np.argwhere(adjacent_triangles == triangle_index))
     return adjacent_triangles
 
@@ -53,9 +52,7 @@ def compute_triangle_cones(object):
     v1 = object.vertices[object.faces[:, 1]]
     v2 = object.vertices[object.faces[:, 2]]
 
-    edge1 = v1 - v0
-    edge2 = v2 - v0
-    normal = np.cross(edge1, edge2, axis=1)
+    normal = np.cross(v1 - v0, v2 - v0, axis=1)
     
     area = np.sqrt(np.sum(normal ** 2, axis=1))
     invarea = np.where(area == 0.0, 0.0, 1.0 / area)
@@ -99,21 +96,22 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126, cone_weight=0.0):
     tree = cKDTree(centroids)
 
     meshlets = []
-    available_triangles = np.arange(object.faces.shape[0])
+    total_triangles = object.faces.shape[0]
     live_triangles = counts.copy()
     used_vertices = np.full(len(object.vertices), 0, dtype=int) # 0: unused, 1: used
 
-    while len(available_triangles) > 0:
+    while total_triangles > 0:
         # Init mesh object
         meshlet = Meshlet()
-        meshlet.compute_cone()
 
         start_index = 0
         # Add triangles to meshlet until it is full
-        while len(available_triangles) > 0 and meshlet.vertex_count < max_vertices and len(meshlet.triangle_indices) < max_triangles:
+        while total_triangles > 0 and meshlet.vertex_count < max_vertices and len(meshlet.triangle_indices) < max_triangles:
+            meshlet.compute_cone()
+
             best_triangle = np.uint32(~0)
             if meshlet.triangle_indices.shape[0] != 0:
-                neighbors = get_neighbors(object, start_index, counts, offsets, data)
+                neighbors = get_neighbors(object, meshlet.triangle_indices, counts, offsets, data)
                 scores = geographical_score(meshlet, neighbors, centroids, normals, cone_weight, meshtlet_expected_radius)
                 best_triangle, best_extra = filter_scores(object, neighbors, scores, live_triangles, used_vertices)
                 
@@ -122,26 +120,30 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126, cone_weight=0.0):
                     best_triangle, best_extra = filter_scores(object, neighbors, scores, live_triangles, used_vertices)
 
             if best_triangle == np.uint32(~0):
-                distance, best_triangle = tree.query(meshlet.centroid)
+                _, best_triangle = tree.query(meshlet.centroid)
 
             if best_triangle == np.uint32(~0):
                 continue
 
             used_extra = np.sum(used_vertices[object.faces[best_triangle]] == 0)
-            print(used_extra)
 
             if meshlet.vertex_count + used_extra > max_vertices or meshlet.triangle_indices.shape[0] >= max_triangles:
                 used_vertices[object.faces[meshlet.triangle_indices].flatten()] = 0
+
+            used_vertices[np.where(used_vertices[object.faces[best_triangle]] == 0)] = 1
 
             meshlet.triangle_indices = np.append(meshlet.triangle_indices, best_triangle)
             meshlet.vertex_count += used_extra
 
             live_triangles[object.faces[best_triangle]] -= 1
 
-            if any(neighbors == best_triangle):
-                counts[object.faces[best_triangle]] -= 1
+            if meshlet.triangle_indices.shape[0] > 1:
+                if any(neighbors == best_triangle):
+                    counts[object.faces[best_triangle]] -= 1
 
             meshlet.centroid += centroids[best_triangle]
             meshlet.normal += normals[best_triangle]
+
+            print(meshlet.triangle_indices)
 
         meshlets.append(meshlet)
