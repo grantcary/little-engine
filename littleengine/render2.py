@@ -97,14 +97,13 @@ def render(w, h, cam, bvh, objects, lights):
     min_t_values, object_indices, _ = trace(objects, cam.position, filtered_rays)
     print('Primary Ray Cast:', time.time() - st)   
 
-    # img = np.full((w, h), 0, dtype=np.uint8)
-    # st = time.time()
-    # for i, ray in enumerate(primary_rays):
-    #     row, col = i // w, i % w
-    #     search = scene.search_collision(cam.position, ray)
-    #     # print(search)
-    #     img[row, col] = 255 if search != None else 127
-    # print(time.time() - st)
+    object_i = np.full(primary_rays.shape[0], -1, dtype=int)
+    object_i[mask] = object_indices
 
-    # rendered_image = Image.fromarray(img, 'L')
-    # rendered_image.show()
+    img = np.full((h, w), 0, dtype=np.uint8)
+    for i, ray in enumerate(primary_rays):
+        row, col = i // w, i % w
+        img[row, col] = 255 if object_i[i] != -1 else 127
+
+    rendered_image = Image.fromarray(img, 'L')
+    rendered_image.show()

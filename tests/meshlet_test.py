@@ -19,8 +19,10 @@ SUZIE = '../test_objects/suzie.obj'
 CUBE = '../test_objects/default_cube.obj'
 ICOSPHERE = '../test_objects/icosphere.obj'
 
-obj = object.Object('Object', ICOSPHERE)
+obj = object.Object('Object', SUZIE)
 
 st = time.time()
-meshlet_gen(obj)
+meshlets = meshlet_gen(obj)
 print(time.time() - st)
+
+print(len(meshlets))

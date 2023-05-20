@@ -1,7 +1,7 @@
 import numpy as np
 
 class BVH():
-    def __init__(self, bounding_box, object_index = None, left = None, right = None, leaf = False):
+    def __init__(self, bounding_box = None, object_index = None, left = None, right = None, leaf = False):
         self.bounding_box = bounding_box
         self.object_index = object_index
         self.left = left
@@ -14,8 +14,29 @@ class BVH():
             return None
         elif self.leaf == True:
             return intersection
-        
-        return self.left.search_collision(ray_origin, ray_direction) or self.right.search_collision(ray_origin, ray_direction)
+
+        left_intersection = self.left.bounding_box.intersect(ray_origin, ray_direction)
+        right_intersection = self.right.bounding_box.intersect(ray_origin, ray_direction)
+
+        if left_intersection is None and right_intersection is None:
+            return None
+
+        elif left_intersection is None:
+            return self.right.search_collision(ray_origin, ray_direction)
+        elif right_intersection is None:
+            return self.left.search_collision(ray_origin, ray_direction)
+
+        elif left_intersection < right_intersection:
+            left_collision = self.left.search_collision(ray_origin, ray_direction)
+            if left_collision is not None and left_collision < right_intersection:
+                return left_collision
+            return self.right.search_collision(ray_origin, ray_direction) or left_collision
+
+        else:
+            right_collision = self.right.search_collision(ray_origin, ray_direction)
+            if right_collision is not None and right_collision < left_intersection:
+                return right_collision
+            return self.left.search_collision(ray_origin, ray_direction) or right_collision
 
 class Bounding_Box():
     def __init__(self, vertices = None, bounds = None):
@@ -36,3 +57,38 @@ class Bounding_Box():
 
 def bounding_volume_hierarchy(scene) -> BVH:
     pass
+
+def merge_bounds(b1, b2):
+    return np.column_stack((np.maximum(b1[:, 0], b2[:, 0]), np.minimum(b1[:, 1], b2[:, 1])))
+
+def gen_meshlet_tree(meshlets):
+    if len(meshlets) == 0:
+        return None
+    
+    if len(meshlets) == 1:
+        return BVH(object_index=meshlets[0].index, leaf=True)
+
+    mid = len(meshlets) // 2
+
+    left = gen_meshlet_tree(meshlets[:mid])
+    right = gen_meshlet_tree(meshlets[mid:])
+
+    return BVH(left=left, right=right)
+
+def build_meshlet_bounds(object, meshlets, node):
+    if node is None:
+        return None
+
+    if node.left:
+        build_meshlet_bounds(object, meshlets, node.left)
+    if node.right:
+        build_meshlet_bounds(object, meshlets, node.right)
+
+    if node.leaf:
+        node.bounding_box = Bounding_Box(object.vertices[object.faces[meshlets[node.object_index].triangles]].reshape(-1, 3))
+    elif node.left and node.right:
+        node.bounding_box = Bounding_Box(bounds=merge_bounds(node.left.bounding_box.bounds, node.right.bounding_box.bounds))
+    elif node.left:
+        node.bounding_box = node.left.bounding_box
+    elif node.right:
+        node.bounding_box = node.right.bounding_box

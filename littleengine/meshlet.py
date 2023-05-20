@@ -4,10 +4,13 @@ from math import sqrt
 import numpy as np
 from scipy.spatial import cKDTree
 
+# Algorithm based off of https://github.com/zeux/meshoptimizer
+# https://github.com/zeux/meshoptimizer/blob/master/src/clusterizer.cpp
+
 class Meshlet():
-    def __init__(self, triangles = np.array([], dtype=int), vertex_count = 0):
+    def __init__(self, index, triangles = np.array([], dtype=int)):
+        self.index = index
         self.triangles = triangles
-        self.vertex_count = vertex_count
         self.centroid = np.array([0, 0, 0], dtype=float)
         self.normal = np.array([0, 0, 0], dtype=float)
 
@@ -118,10 +121,12 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126, cone_weight=0.0):
 
     used_vertices = np.full(len(object.vertices), 0, dtype=int) # 0: unused, 1: used
 
+    meshlet_index = 0
     while total_triangles > 0:
-        meshlet = Meshlet()
+        meshlet = Meshlet(meshlet_index)
 
-        while total_triangles > 0 and meshlet.vertex_count < max_vertices and len(meshlet.triangles) < max_triangles:
+        vertex_count = 0
+        while total_triangles > 0 and vertex_count < max_vertices and len(meshlet.triangles) < max_triangles:
             meshlet.compute_cone()
 
             best_triangle = np.uint32(~0)
@@ -132,14 +137,14 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126, cone_weight=0.0):
                 scores = geographical_score(meshlet, neighbors, centroids, normals, cone_weight, meshtlet_expected_radius)
                 best_triangle, best_extra = filter_scores(object, neighbors, scores, live_triangles, emitted_triangles, used_vertices)
                 
-                if best_triangle != np.uint32(~0) and (meshlet.vertex_count + best_extra > max_vertices or meshlet.triangles.shape[0] >= max_triangles):
+                if best_triangle != np.uint32(~0) and (vertex_count + best_extra > max_vertices or meshlet.triangles.shape[0] >= max_triangles):
                     scores = topological_score(object, neighbors, live_triangles)
                     best_triangle = filter_scores(object, neighbors, scores, live_triangles, emitted_triangles, used_vertices)[0]
                     if best_triangle != np.uint32(~0) and best_triangle is not None:
                         emitted_triangles[best_triangle] = 1
 
             if best_triangle == np.uint32(~0):
-                best_triangle = search_kdtree(tree, meshlet.centroid, emitted_triangles, 2)
+                best_triangle = search_kdtree(tree, meshlet.centroid, emitted_triangles, 1)
                 if best_triangle is not None:
                     emitted_triangles[best_triangle] = 1
 
@@ -148,13 +153,11 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126, cone_weight=0.0):
 
             best_vertices = object.faces[best_triangle]
 
-            # from appendMeshlet function #
             used_extra = np.sum(used_vertices[best_vertices] == 0)
             used_vertices[np.where(used_vertices[best_vertices] == 0)] = 1
 
             meshlet.triangles = np.append(meshlet.triangles, best_triangle)
-            meshlet.vertex_count += used_extra
-            ###############################
+            vertex_count += used_extra
 
             live_triangles[best_vertices] -= 1
 
@@ -168,14 +171,9 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126, cone_weight=0.0):
             total_triangles -= 1
             emitted_triangles[best_triangle] = 1
 
-            # print('Meshlet Triangles:', meshlet.triangles)
-
+        print(meshlet.index)
         meshlets.append(meshlet)
+        meshlet_index += 1
         used_vertices[object.faces[meshlet.triangles].flatten()] = 0
     
-        print(meshlet.triangles.shape[0], meshlet.triangles)
-    
-    tri_array = [m.triangles[i] for m in meshlets for i in range(len(m.triangles))]
-    unique_array = np.unique(np.array(tri_array))
-    print(len(tri_array) == len(unique_array))
-    print(object.faces.shape[0], len(tri_array))
+    return meshlets
