@@ -1,0 +1,29 @@
+digraph {
+	<littleengine.bvh.BVH object at 0x7fa4f590f2e0> [label="[[ 0.951058 -0.951058]
+ [ 1.       -1.      ]
+ [ 1.       -1.      ]]"]
+	<littleengine.bvh.BVH object at 0x7fa4f54bbd30> [label="[[ 0.951058 -0.951058]
+ [ 1.       -0.850654]
+ [ 1.       -1.      ]]"]
+	<littleengine.bvh.BVH object at 0x7fa4f590f2e0> -> <littleengine.bvh.BVH object at 0x7fa4f54bbd30>
+	<littleengine.bvh.BVH object at 0x7fa4ccc671f0> [label="[[ 0.587786 -0.951058]
+ [ 1.       -0.525738]
+ [ 1.       -1.      ]]"]
+	<littleengine.bvh.BVH object at 0x7fa4f54bbd30> -> <littleengine.bvh.BVH object at 0x7fa4ccc671f0>
+	<littleengine.bvh.BVH object at 0x7fa4f54bbcd0> [label="[[ 0.951058 -0.894426]
+ [ 0.447216 -0.850654]
+ [ 0.850649 -1.      ]]"]
+	<littleengine.bvh.BVH object at 0x7fa4f54bbd30> -> <littleengine.bvh.BVH object at 0x7fa4f54bbcd0>
+	<littleengine.bvh.BVH object at 0x7fa4f590f250> [label="[[ 0.951058 -0.951058]
+ [ 1.       -1.      ]
+ [ 1.       -1.      ]]"]
+	<littleengine.bvh.BVH object at 0x7fa4f590f2e0> -> <littleengine.bvh.BVH object at 0x7fa4f590f250>
+	<littleengine.bvh.BVH object at 0x7fa4f590ef20> [label="[[ 0.951058 -0.425323]
+ [ 1.       -0.525738]
+ [ 0.850649 -1.      ]]"]
+	<littleengine.bvh.BVH object at 0x7fa4f590f250> -> <littleengine.bvh.BVH object at 0x7fa4f590ef20>
+	<littleengine.bvh.BVH object at 0x7fa4f590f1c0> [label="[[ 0.723607 -0.951058]
+ [ 0.850654 -1.      ]
+ [ 1.       -0.809017]]"]
+	<littleengine.bvh.BVH object at 0x7fa4f590f250> -> <littleengine.bvh.BVH object at 0x7fa4f590f1c0>
+}

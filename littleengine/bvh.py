@@ -8,6 +8,25 @@ class BVH():
         self.right = right
         self.leaf = leaf
 
+    # def search_collision(self, ray_origin, ray_direction):
+    #     intersection = self.bounding_box.intersect(ray_origin, ray_direction)
+    #     if intersection is None:
+    #         return []
+    #     elif self.leaf:
+    #         return [self.object_index]
+
+    #     indices = []
+
+    #     left_intersection = None if self.left is None else self.left.bounding_box.intersect(ray_origin, ray_direction)
+    #     right_intersection = None if self.right is None else self.right.bounding_box.intersect(ray_origin, ray_direction)
+
+    #     if left_intersection is not None:
+    #         indices.extend(self.left.search_collision(ray_origin, ray_direction))
+    #     if right_intersection is not None:
+    #         indices.extend(self.right.search_collision(ray_origin, ray_direction))
+
+    #     return indices
+
     def search_collision(self, ray_origin, ray_direction):
         intersection = self.bounding_box.intersect(ray_origin, ray_direction)
         if intersection is None:
