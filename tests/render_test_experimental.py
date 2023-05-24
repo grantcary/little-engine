@@ -1,20 +1,14 @@
 import os
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import time
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import numpy as np
 from PIL import Image
-
 from graphviz import Digraph
 
-import littleengine.mesh as mesh
-import littleengine.object as object
-import littleengine.camera as camera
-import littleengine.render2 as render2
-from littleengine.bvh import BVH, Bounding_Box, gen_meshlet_tree, build_meshlet_bounds
-from littleengine.meshlet import meshlet_gen
+from littleengine import *
 import tools
 
 SUZIE = '../test_objects/suzie.obj'
@@ -26,7 +20,7 @@ TEAPOT = '../test_objects/teapot.obj'
 suzie = object.Object('Monkey', SUZIE)
 suzie.material_type = 'diffuse'
 suzie.color = np.array([255, 0, 0])
-suzie.translate(0, 0, 0)
+suzie.translate(0, 0, 4)
 # objects.append(suzie)
 
 cube = object.Object('Cube', CUBE)
@@ -60,8 +54,9 @@ for i, m in enumerate(meshlets):
 print('Meshlet Gen:', time.time() - st)
 objects = [mesh.Mesh(o.vertices, o.faces[m.triangles], o.normals) for m in meshlets]
 
-tree = gen_meshlet_tree(meshlets)
-build_meshlet_bounds(o, meshlets, tree)
+tree = bounding_volume_hierarchy(o, meshlets)
+# tree = gen_meshlet_tree(meshlets)
+# build_meshlet_bounds(o, meshlets, tree)
 
 def add_nodes_edges(tree, dot=None):
     if dot is None:
@@ -83,5 +78,4 @@ def add_nodes_edges(tree, dot=None):
 # dot = add_nodes_edges(tree)
 # dot.render('binary_tree.gv', view=True)
 
-
-render2.render(w, h, cam, tree, objects)
+render_experimental(w, h, cam, tree, objects)

@@ -2,11 +2,9 @@ import time
 
 import numpy as np
 from PIL import Image
-from numba import njit
 
 # np.set_printoptions(threshold=sys.maxsize)
 
-@njit
 def ray_triangle_intersection(ray_origin, ray_directions, triangle_vertices):
     epsilon = 1e-6
     v0, v1, v2 = triangle_vertices
@@ -17,7 +15,11 @@ def ray_triangle_intersection(ray_origin, ray_directions, triangle_vertices):
     a = np.dot(edge1, h.T)
 
     parallel_mask = np.abs(a) < epsilon
-    f = 1.0 / a
+
+    f = np.zeros_like(a)
+    non_zero_a_indices = np.abs(a) >= epsilon
+    f[non_zero_a_indices] = 1.0 / a[non_zero_a_indices]
+    
     s = ray_origin - v0
     u = f * np.dot(s, h.T)
 
@@ -76,23 +78,24 @@ def shade(objects, lights, intersection_points, object_indices):
     return hit_colors
 
 def render(w, h, cam, objects, lights):
-    st = time.time()
+    tst = time.time()
     primary_rays = cam.primary_rays(w, h)
-    print('Generate Primary Rays:', time.time() - st)
+    print(f'\nGenerate Primary Rays: {time.time() - tst:.4f}s')
     
     st = time.time()
     min_t_values, object_indices, _ = trace(objects, cam.position, primary_rays)
-    print('Primary Ray Cast:', time.time() - st)            
+    print(f'Primary Rays Cast: {time.time() - st:.4f}s')
 
     intersection_points = cam.position + primary_rays * min_t_values.reshape(-1, 1)
     valid_intersection_mask = object_indices != -1
 
     st = time.time()
     hit_colors = shade(objects, lights, intersection_points[valid_intersection_mask], object_indices[valid_intersection_mask])
-    print('Diffuse Ray Cast:', time.time() - st)
+    print(f'Shadow Rays Cast: {time.time() - st:.4f}s')
 
     hit_color_image = np.full((h, w, 3), [6, 20, 77] , dtype=np.uint8)
     hit_color_image[valid_intersection_mask.reshape(h, w)] = hit_colors
     rendered_image = Image.fromarray(hit_color_image, 'RGB')
 
+    print(f'\nTotal Render Time: {time.time() - tst:.4f}s')
     rendered_image.show()
