@@ -1,5 +1,4 @@
 # little-engine
-Little 3D graphics engine written in python
 <img src='https://github.com/grantcary/little-engine/blob/main/monkey_shaded.PNG' alt='monkey' width='300'>
 
 Written by a complete noob with very basic understanding of computer graphics
