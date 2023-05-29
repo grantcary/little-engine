@@ -2,7 +2,7 @@ from littleengine.scene import mesh
 import numpy as np
 
 class Object:
-    def __init__(self, name: str = None, path: str = None):
+    def __init__(self, name = None, path = None, color = np.array([255, 255, 255]), luminance = 0.0, reflectivity = 0.0):
         self.name = name
         self.position = np.array([0.0, 0.0, 0.0])
         self.mesh = mesh.Mesh(*self.read_file(path))
@@ -13,9 +13,9 @@ class Object:
         self.faces = self.mesh.faces
         self.normals = self.mesh.normals
 
-        self.material_type = None
-        self.color = np.array([255, 255, 255])
-        self.luma = 0.0
+        self.color = color if isinstance(color, np.ndarray) else np.array(color)
+        self.luminance = luminance
+        self.reflectivity = reflectivity
 
     def read_file(self, path):
         with open(path, "r") as f:
