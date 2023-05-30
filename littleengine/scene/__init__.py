@@ -1,4 +1,4 @@
 from .camera import Camera
-from .lights import Light
+from .light import Light
 from .mesh import Mesh
 from .object import Object

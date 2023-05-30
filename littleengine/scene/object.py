@@ -2,18 +2,18 @@ from littleengine.scene import mesh
 import numpy as np
 
 class Object:
-    def __init__(self, name = None, path = None, color = np.array([255, 255, 255]), luminance = 0.0, reflectivity = 0.0):
+    def __init__(self, name=None, path=None, position=[0.0, 0.0, 0.0], color=[255, 255, 255], luminance=0.0, reflectivity=0.0):
         self.name = name
-        self.position = np.array([0.0, 0.0, 0.0])
+        self.position = np.array(position, dtype=np.float32)
         self.mesh = mesh.Mesh(*self.read_file(path))
-
         self.mesh.triangulate()
-        
+        self.mesh.translate(*position)
+
         self.vertices = self.mesh.vertices
         self.faces = self.mesh.faces
         self.normals = self.mesh.normals
 
-        self.color = color if isinstance(color, np.ndarray) else np.array(color)
+        self.color = np.array(color, dtype=np.uint8)
         self.luminance = luminance
         self.reflectivity = reflectivity
 

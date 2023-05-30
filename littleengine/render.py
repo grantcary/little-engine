@@ -64,9 +64,9 @@ def trace(objects, ray_origin, ray_directions, background_color):
 
     return min_t_values, object_indices, tri_indices, tri_normals, color_values, reflectivity_values
 
-def shade(objects, lights, intersection_points, object_indices, background_color):
+def shade(objects, lights, intersection_points, hit_normals, object_indices, background_color):
     n = intersection_points.shape[0]
-    hit_colors = np.zeros((n, 3))
+    hit_colors = np.zeros((n, 3), dtype=np.float32)
 
     for light in lights:
         light_directions = light.position - intersection_points
@@ -78,21 +78,18 @@ def shade(objects, lights, intersection_points, object_indices, background_color
         shadow_ray_len2 = shadow_ray_t * shadow_ray_t
         isInShadow = (shadow_ray_indices != -1) & (shadow_ray_len2 < len2)
 
+        cos_theta = np.einsum('ij,ij->i', hit_normals, normalized_light_directions)
         for i in range(n):
             obj = objects[object_indices[i]]
-            if not isInShadow[i]:
-                hit_colors[i] = obj.color * (1 - isInShadow[i])
+            hit_colors[i] = obj.color * light.intensity * max(0, cos_theta[i]) * (1 - isInShadow[i])
 
     return hit_colors
 
-def reflect(ray_origins, ray_directions, hit_normals, reflectivity_values, background_color, bias):
+def reflect(ray_origins, ray_directions, hit_normals, reflectivity_values, color_values, background_color, bias):
     ray_origins = ray_origins + hit_normals * bias
     ray_directions = ray_directions - 2 * np.einsum('ij,ij->i', ray_directions, hit_normals)[:, np.newaxis] * hit_normals
-    hit_colors = reflectivity_values[:, np.newaxis] * 0.8 * background_color
+    hit_colors = reflectivity_values[:, np.newaxis] * color_values + (1 - reflectivity_values[:, np.newaxis]) * background_color
     return ray_origins, ray_directions, hit_colors
-
-# def refract():
-#     pass
 
 def calculate_scene(w, h, cam, objects, lights):
     background_color = [6, 20, 77]
@@ -105,6 +102,7 @@ def calculate_scene(w, h, cam, objects, lights):
 
     bar = progressbar.ProgressBar()
     for current_depth in bar(range(max_depth)):
+        print(f'pass {current_depth+1}...')
         min_t_values, object_indices, triangle_indices, hit_normals, color_values, reflectivity_values = trace(objects, ray_origins, ray_directions, background_color)
 
         intersection_points = ray_origins + ray_directions * min_t_values.reshape(-1, 1)
@@ -122,12 +120,17 @@ def calculate_scene(w, h, cam, objects, lights):
         hit_normals = hit_normals[current_intersection_mask]
         reflectivity_values = reflectivity_values[current_intersection_mask]
         color_values = color_values[current_intersection_mask]
+        object_indices = object_indices[current_intersection_mask]
 
-        hit_colors = shade(objects, lights, ray_origins, object_indices[current_intersection_mask], background_color)
+        st = time.time()
+        hit_colors = shade(objects, lights, ray_origins, hit_normals, object_indices, background_color)
         image_hit_colors[intersection_mask] += hit_colors
-        
-        ray_origins, ray_directions, hit_colors = reflect(ray_origins, ray_directions, hit_normals, reflectivity_values, background_color, 1e-4)
+        print('shade compute time:', time.time() - st)
+
+        st = time.time()
+        ray_origins, ray_directions, hit_colors = reflect(ray_origins, ray_directions, hit_normals, reflectivity_values, color_values, background_color, 1e-4)
         image_hit_colors[intersection_mask] += hit_colors
+        print('reflect compute time:', time.time() - st)
 
         bar.update(current_depth)
 
@@ -139,7 +142,6 @@ def calculate_scene(w, h, cam, objects, lights):
 
 def render(w, h, cam, objects, lights):
     tst = time.time()
-    # hit_color_image = 
     hit_color_image = calculate_scene(w, h, cam, objects, lights)
     print(f'\nTotal Render Time: {time.time() - tst:.4f}s')
 
