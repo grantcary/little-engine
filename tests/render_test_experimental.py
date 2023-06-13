@@ -16,43 +16,25 @@ CUBE = '../test_objects/default_cube.obj'
 ICOSPHERE = '../test_objects/icosphere.obj'
 TEAPOT = '../test_objects/teapot.obj'
 
-# objects = []
-suzie = object.Object('Monkey', SUZIE)
-suzie.material_type = 'diffuse'
-suzie.color = np.array([255, 0, 0])
-suzie.translate(0, 0, 4)
-# objects.append(suzie)
+suzie = Object('Monkey', SUZIE, position=[0, 0, 0], color=[255, 0, 0], reflectivity=0.3)
+cube = Object('Cube', CUBE, position=[-2, 0, 0], color=[0, 255, 0], ior=1.3)
+objects = [suzie]
 
-cube = object.Object('Cube', CUBE)
-cube.material_type = 'diffuse'
-cube.translate(0, 0, 0)
-cube.color = np.array([0, 255, 0])
-# objects.append(cube)
+cam = Camera(position=[0, 0, 5], rotation=[0, 180, 0], fov=90, aspect_ratio=1)
 
-ico = object.Object('Icosphere', ICOSPHERE)
-ico.material_type = 'diffuse'
-ico.translate(0, 0, 0)
-
-pot = object.Object('Teapot', TEAPOT)
-pot.material_type = 'diffuse'
-pot.translate(0, 0, 3)
-
-w, h = 100, 100
-cam = camera.Camera(90, aspect_ratio=1)
-cam.position = np.array([0, 0, 5])
-cam.rotation = np.array([0, 180, 0])
-primary_rays = cam.primary_rays(w, h)
-
-o = ico
+o = suzie
 st = time.time()
-meshlets = meshlet_gen(o)
+meshlets = simple_meshlet_gen(o)
+print('Meshlet Gen:', time.time() - st)
+
+print(len(np.unique([t for m in meshlets for t in m.triangles])) == o.faces.shape[0])
+
 # meshlets = meshlets[len(meshlets) // 2:]
 meshlets.sort(key=lambda meshlet: meshlet.centroid[2])
 for i, m in enumerate(meshlets):
     m.index = i
 
-print('Meshlet Gen:', time.time() - st)
-objects = [mesh.Mesh(o.vertices, o.faces[m.triangles], o.normals) for m in meshlets]
+objects = [Mesh(o.vertices, o.faces[m.triangles], o.normals) for m in meshlets]
 
 tree = bounding_volume_hierarchy(o, meshlets)
 # tree = gen_meshlet_tree(meshlets)
@@ -78,4 +60,4 @@ def add_nodes_edges(tree, dot=None):
 # dot = add_nodes_edges(tree)
 # dot.render('binary_tree.gv', view=True)
 
-render_experimental(w, h, cam, tree, objects)
+# render_experimental(w, h, cam, tree, objects)

@@ -117,7 +117,9 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126, cone_weight=0.0):
     triangle_average_area = 0.0 if object.faces.shape[0] == 0 else mesh_area / float(object.faces.shape[0]) * 0.5
     meshtlet_expected_radius = sqrt(triangle_average_area * max_triangles) * 0.5
 
+    st = time.time()
     tree = cKDTree(centroids)
+    print('Tree Generation time:', time.time() - st)
 
     used_vertices = np.full(len(object.vertices), 0, dtype=int) # 0: unused, 1: used
 
@@ -171,7 +173,7 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126, cone_weight=0.0):
             total_triangles -= 1
             emitted_triangles[best_triangle] = 1
 
-        print(meshlet.index)
+        print(meshlet.index, meshlet.triangles.shape[0])
         meshlets.append(meshlet)
         meshlet_index += 1
         used_vertices[object.faces[meshlet.triangles].flatten()] = 0
