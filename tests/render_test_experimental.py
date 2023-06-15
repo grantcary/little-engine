@@ -16,7 +16,7 @@ CUBE = '../test_objects/default_cube.obj'
 ICOSPHERE = '../test_objects/icosphere.obj'
 TEAPOT = '../test_objects/teapot.obj'
 
-suzie = Object('Monkey', SUZIE, position=[0, 0, 0], color=[255, 0, 0], reflectivity=0.3)
+suzie = Object('Monkey', TEAPOT, position=[0, 0, 0], color=[255, 0, 0], reflectivity=0.3)
 cube = Object('Cube', CUBE, position=[-2, 0, 0], color=[0, 255, 0], ior=1.3)
 objects = [suzie]
 
@@ -24,7 +24,7 @@ cam = Camera(position=[0, 0, 5], rotation=[0, 180, 0], fov=90, aspect_ratio=1)
 
 o = suzie
 st = time.time()
-meshlets = simple_meshlet_gen(o)
+meshlets = meshlet_gen(o)
 print('Meshlet Gen:', time.time() - st)
 
 print(len(np.unique([t for m in meshlets for t in m.triangles])) == o.faces.shape[0])

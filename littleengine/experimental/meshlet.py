@@ -81,6 +81,9 @@ def filter_scores(object, neighbors, scores, live_triangles, emitted_triangles, 
     extras = np.sum((used_vertices[object.faces[neighbors]] == 0) & (live_triangles[object.faces[neighbors]] != 1), axis=1)
     extras[extras != 0] += 1
 
+    if scores.size == 0 or extras.size == 0: 
+        return np.uint32(~0), 0
+
     min_score, min_extras = np.min(scores), np.min(extras)
     
     for idx, (score, extra) in enumerate(zip(scores, extras)):
@@ -88,6 +91,12 @@ def filter_scores(object, neighbors, scores, live_triangles, emitted_triangles, 
             return neighbors[idx], extra
 
     return np.uint32(~0), 0
+
+def generate_kdtree(emitted_triangles, centroids):
+    valid_triangle_indices = np.nonzero(emitted_triangles == 0)[0]
+    valid_centroids = centroids[valid_triangle_indices]
+    tree = cKDTree(valid_centroids)
+    return valid_triangle_indices, tree
 
 def search_kdtree(tree, centroid, emitted_triangles, k):
     while True:
@@ -117,15 +126,12 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126, cone_weight=0.0):
     triangle_average_area = 0.0 if object.faces.shape[0] == 0 else mesh_area / float(object.faces.shape[0]) * 0.5
     meshtlet_expected_radius = sqrt(triangle_average_area * max_triangles) * 0.5
 
-    st = time.time()
-    tree = cKDTree(centroids)
-    print('Tree Generation time:', time.time() - st)
-
     used_vertices = np.full(len(object.vertices), 0, dtype=int) # 0: unused, 1: used
 
     meshlet_index = 0
     while total_triangles > 0:
         meshlet = Meshlet(meshlet_index)
+        valid_triangle_indices, tree = generate_kdtree(emitted_triangles, centroids)
 
         vertex_count = 0
         while total_triangles > 0 and vertex_count < max_vertices and len(meshlet.triangles) < max_triangles:
@@ -146,7 +152,7 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126, cone_weight=0.0):
                         emitted_triangles[best_triangle] = 1
 
             if best_triangle == np.uint32(~0):
-                best_triangle = search_kdtree(tree, meshlet.centroid, emitted_triangles, 1)
+                best_triangle = valid_triangle_indices[search_kdtree(tree, meshlet.centroid, emitted_triangles[valid_triangle_indices], 1)]
                 if best_triangle is not None:
                     emitted_triangles[best_triangle] = 1
 
@@ -167,13 +173,14 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126, cone_weight=0.0):
             if any(neighbors == best_triangle):
                 counts[best_vertices] -= 1
 
+            valid_triangle_indices, tree = generate_kdtree(emitted_triangles, centroids)
+
             meshlet.centroid += centroids[best_triangle]
             meshlet.normal += normals[best_triangle]
 
             total_triangles -= 1
             emitted_triangles[best_triangle] = 1
 
-        print(meshlet.index, meshlet.triangles.shape[0])
         meshlets.append(meshlet)
         meshlet_index += 1
         used_vertices[object.faces[meshlet.triangles].flatten()] = 0

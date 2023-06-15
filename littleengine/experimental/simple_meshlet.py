@@ -1,12 +1,5 @@
-from littleengine.experimental.meshlet import Meshlet, generate_triangle_adjacency, get_neighbors, compute_triangle_cones
-from scipy.spatial import cKDTree
+from littleengine.experimental.meshlet import Meshlet, generate_triangle_adjacency, get_neighbors, compute_triangle_cones, generate_kdtree
 import numpy as np
-
-def generate_kdtree(emitted_triangles, centroids):
-    valid_triangle_indices = np.nonzero(emitted_triangles == 0)[0]
-    valid_centroids = centroids[valid_triangle_indices]
-    tree = cKDTree(valid_centroids)
-    return valid_triangle_indices, tree
 
 def search_kdtree(tree, centroid, emitted_triangles, k):
     while True:
@@ -61,8 +54,6 @@ def simple_meshlet_gen(object, max_vertices=64, max_triangles=126):
             
             total_triangles -= 1
             vertex_count += used_extra
-        
-        print("Meshlet", meshlet.index, "Triangle Count:", meshlet.triangles.shape[0])
 
         meshlets.append(meshlet)
         used_vertices[object.faces[meshlet.triangles].flatten()] = False
