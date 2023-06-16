@@ -2,7 +2,7 @@ from littleengine.scene import mesh
 import numpy as np
 
 class Object:
-    def __init__(self, name=None, path=None, position=[0.0, 0.0, 0.0], color=[255, 255, 255], luminance=0.0, reflectivity=0.0, ior=0.0):
+    def __init__(self, name=None, path=None, position=[0.0, 0.0, 0.0], color=[255, 255, 255], luminance=0.0, reflectivity=0.0, ior=0.0, bvh=None):
         self.name = name
         self.position = np.array(position, dtype=np.float32)
         self.mesh = mesh.Mesh(*self.read_file(path))
@@ -17,6 +17,8 @@ class Object:
         self.luminance = luminance
         self.reflectivity = reflectivity
         self.ior = ior
+
+        self.bvh = bvh
 
     def read_file(self, path):
         with open(path, "r") as f:

@@ -1,5 +1,6 @@
 from matplotlib import pyplot as plt
 import numpy as np
+from graphviz import Digraph
 
 def plot_points_3D(obj, labels : bool = False):
   fig = plt.figure()
@@ -52,3 +53,20 @@ def plot_vectors_3D(vectors):
   ax.set_zlabel('Z')
 
   plt.show()
+
+def add_nodes_edges(tree, dot=None):
+    if dot is None:
+        dot = Digraph()
+        dot.node(name=str(tree), label=str(tree.bounding_box.bounds))
+
+    if tree.left:
+        dot.node(name=str(tree.left) ,label=str(tree.left.bounding_box.bounds))
+        dot.edge(str(tree), str(tree.left))
+        dot = add_nodes_edges(tree.left, dot=dot)
+    
+    if tree.right:
+        dot.node(name=str(tree.right) ,label=str(tree.right.bounding_box.bounds))
+        dot.edge(str(tree), str(tree.right))
+        dot = add_nodes_edges(tree.right, dot=dot)
+
+    return dot

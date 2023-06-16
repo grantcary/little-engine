@@ -8,54 +8,31 @@ class BVH():
         self.right = right
         self.leaf = leaf
 
-    def search_collision_all(self, ray_origin, ray_direction):
+    def get_intersection(self, ray_origin, ray_direction, side):
+        return None if side is None else side.bounding_box.intersect(ray_origin, ray_direction)
+
+    def search_collision(self, ray_origin, ray_direction, closest=False):
         intersection = self.bounding_box.intersect(ray_origin, ray_direction)
         if intersection is None:
-            return []
+            return [] if not closest else None
         elif self.leaf:
-            return [self.object_index]
+            return [self.object_index] if not closest else intersection
 
-        indices = []
-
-        left_intersection = None if self.left is None else self.left.bounding_box.intersect(ray_origin, ray_direction)
-        right_intersection = None if self.right is None else self.right.bounding_box.intersect(ray_origin, ray_direction)
-
-        if left_intersection is not None:
-            indices.extend(self.left.search_collision_all(ray_origin, ray_direction))
-        if right_intersection is not None:
-            indices.extend(self.right.search_collision_all(ray_origin, ray_direction))
-
-        return indices
-
-    def search_collision_closest(self, ray_origin, ray_direction):
-        intersection = self.bounding_box.intersect(ray_origin, ray_direction)
-        if intersection is None:
-            return None
-        elif self.leaf == True:
-            return intersection
-
-        left_intersection = self.left.bounding_box.intersect(ray_origin, ray_direction)
-        right_intersection = self.right.bounding_box.intersect(ray_origin, ray_direction)
+        left_intersection = self.get_intersection(ray_origin, ray_direction, self.left)
+        right_intersection = self.get_intersection(ray_origin, ray_direction, self.right)
 
         if left_intersection is None and right_intersection is None:
-            return None
-
-        elif left_intersection is None:
-            return self.right.search_collision_closest(ray_origin, ray_direction)
-        elif right_intersection is None:
-            return self.left.search_collision_closest(ray_origin, ray_direction)
-
-        elif left_intersection < right_intersection:
-            left_collision = self.left.search_collision_closest(ray_origin, ray_direction)
-            if left_collision is not None and left_collision < right_intersection:
-                return left_collision
-            return self.right.search_collision_closest(ray_origin, ray_direction) or left_collision
-
+            return [] if not closest else None
+        elif left_intersection is None or (right_intersection is not None and left_intersection > right_intersection):
+            return self.right.search_collision(ray_origin, ray_direction, closest)
         else:
-            right_collision = self.right.search_collision_closest(ray_origin, ray_direction)
-            if right_collision is not None and right_collision < left_intersection:
-                return right_collision
-            return self.left.search_collision_closest(ray_origin, ray_direction) or right_collision
+            return self.left.search_collision(ray_origin, ray_direction, closest)
+
+    def search_collision_all(self, ray_origin, ray_direction):
+        return self.search_collision(ray_origin, ray_direction, closest=False)
+
+    def search_collision_closest(self, ray_origin, ray_direction):
+        return self.search_collision(ray_origin, ray_direction, closest=True)
 
 class Bounding_Box():
     def __init__(self, vertices = None, bounds = None):
@@ -77,39 +54,28 @@ class Bounding_Box():
 def merge_bounds(b1, b2):
     return np.column_stack((np.maximum(b1[:, 0], b2[:, 0]), np.minimum(b1[:, 1], b2[:, 1])))
 
-def gen_meshlet_tree(meshlets):
-    if len(meshlets) == 0:
-        return None
-    
+def generate_and_build_tree(object, meshlets):
     if len(meshlets) == 1:
-        return BVH(object_index=meshlets[0].index, leaf=True)
+        return BVH(bounding_box=Bounding_Box(object.vertices[object.faces[meshlets[0].triangles]].reshape(-1, 3)), object_index=meshlets[0].index, leaf=True)
 
     mid = len(meshlets) // 2
 
-    left = gen_meshlet_tree(meshlets[:mid])
-    right = gen_meshlet_tree(meshlets[mid:])
+    left = generate_and_build_tree(object, meshlets[:mid])
+    right = generate_and_build_tree(object, meshlets[mid:])
 
-    return BVH(left=left, right=right)
+    node = BVH(left=left, right=right)
 
-def build_meshlet_bounds(object, meshlets, node):
-    if node is None:
-        return None
+    bounds_left = left.bounding_box.bounds if left else None
+    bounds_right = right.bounding_box.bounds if right else None
 
-    if node.left:
-        build_meshlet_bounds(object, meshlets, node.left)
-    if node.right:
-        build_meshlet_bounds(object, meshlets, node.right)
+    if bounds_left is not None and bounds_right is not None:
+        node.bounding_box = Bounding_Box(bounds=merge_bounds(bounds_left, bounds_right))
+    elif bounds_left is not None:
+        node.bounding_box = left.bounding_box
+    elif bounds_right is not None:
+        node.bounding_box = right.bounding_box
 
-    if node.leaf:
-        node.bounding_box = Bounding_Box(object.vertices[object.faces[meshlets[node.object_index].triangles]].reshape(-1, 3))
-    elif node.left and node.right:
-        node.bounding_box = Bounding_Box(bounds=merge_bounds(node.left.bounding_box.bounds, node.right.bounding_box.bounds))
-    elif node.left:
-        node.bounding_box = node.left.bounding_box
-    elif node.right:
-        node.bounding_box = node.right.bounding_box
+    return node
 
 def bounding_volume_hierarchy(object, meshlets) -> BVH:
-    tree = gen_meshlet_tree(meshlets)
-    build_meshlet_bounds(object, meshlets, tree)
-    return tree
+    return generate_and_build_tree(object, meshlets)
