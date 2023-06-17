@@ -7,7 +7,7 @@ class SceenParams():
     self.w = width
     self.h = height
     self.bgc = background_color
-    self.mrd = max_ray_depth
+    self.depth = max_ray_depth
 
 def rotation_matrix(euler_angles):
     rx, ry, rz = np.radians(euler_angles)

@@ -5,8 +5,10 @@ from numpy.typing import NDArray
 
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 
 from littleengine import *
+from .utils import SceenParams
 
 # np.set_printoptions(threshold=sys.maxsize)
 
@@ -89,17 +91,12 @@ def reflect(origins: ndf64, directions: ndf64, normals: ndf64, colors: ndf64, re
     colors = reflectivity[:, np.newaxis] * colors + (1 - reflectivity[:, np.newaxis]) * bgc
     return origins, directions, colors
 
-def calculate_scene(w: int, h: int, bgc: List[int], mrd: int, cam: Camera, objects: List[Object], lights: List[Light]) -> ndf64:
+def calculate_scene(w: int, h: int, bgc: List[int], depth: int, cam: Camera, objects: List[Object], lights: List[Light]) -> ndf64:
     image = np.zeros((h * w, 3), dtype=np.float64)
     origins, directions = cam.position, cam.primary_rays(w, h)
     mask = None
-    for depth in range(mrd):
-        print(f'pass {depth+1}...')
-
-        st = time.time()
+    for _ in tqdm(range(depth), total=depth, desc='Ray Depth'):
         t, obj_indices, normals, colors, reflectivity, ior = trace(objects, origins, directions, bgc)
-        print('primary rays cast:', time.time() - st)
-        
         intersects = origins + directions * t.reshape(-1, 1)
         
         current_mask = obj_indices != -1
@@ -112,15 +109,9 @@ def calculate_scene(w: int, h: int, bgc: List[int], mrd: int, cam: Camera, objec
         origins, directions, normals = intersects[current_mask], directions[current_mask], normals[current_mask]
         colors, reflectivity, ior = colors[current_mask], reflectivity[current_mask], ior[current_mask]
  
-        st = time.time()
-        colors = shade(objects, lights, origins, normals, obj_indices, bgc)
+        image[mask] += shade(objects, lights, origins, normals, obj_indices, bgc)
+        origins, directions, colors = reflect(origins, directions, normals, colors, reflectivity, bgc, 1e-4)
         image[mask] += colors
-        print('shade compute time:', time.time() - st)
-
-        st = time.time()
-        origins, directions, colors = reflect(origins, directions, normals, reflectivity, colors, bgc, 1e-4)
-        image[mask] += colors
-        print('reflect compute time:', time.time() - st)
 
     no_hit_mask = np.all(image == 0, axis=-1)    
     image[no_hit_mask] += bgc
@@ -128,7 +119,7 @@ def calculate_scene(w: int, h: int, bgc: List[int], mrd: int, cam: Camera, objec
 
 def render(cam: Camera, params: SceenParams, objects: List[Object], lights: List[Light]) -> None:
     st = time.time()
-    rendered_image = calculate_scene(params.w, params.h, params.bgc, params.mrd, cam, objects, lights)
+    rendered_image = calculate_scene(params.w, params.h, params.bgc, params.depth, cam, objects, lights)
     print(f'\nTotal Render Time: {time.time() - st:.4f}s')
 
     image = Image.fromarray(rendered_image.reshape(params.h, params.w, 3), 'RGB')
