@@ -1,5 +1,13 @@
 from matplotlib import pyplot as plt
 import numpy as np
+from typing import List
+
+class SceenParams():
+  def __init__(self, width: int = 100, height: int = 100, background_color: List[int] = [6, 20, 77], max_ray_depth: int = 3):
+    self.w = width
+    self.h = height
+    self.bgc = background_color
+    self.mrd = max_ray_depth
 
 def rotation_matrix(euler_angles):
     rx, ry, rz = np.radians(euler_angles)

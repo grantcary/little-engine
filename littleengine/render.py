@@ -1,18 +1,25 @@
-import sys
-import time
+import sys, time
+
+from typing import Type, List, Tuple
+from numpy.typing import NDArray
 
 import numpy as np
 from PIL import Image
 
+from littleengine import *
+
 # np.set_printoptions(threshold=sys.maxsize)
 
-def ray_triangle_intersection(ray_origin, ray_directions, triangle_vertices):
+ndf64 = NDArray[np.float64]
+ndi8 = NDArray[np.int8]
+
+def ray_triangle_intersection(origins: ndf64, directions: ndf64, triangle: ndf64) -> Tuple[ndi8, ndf64]:
     epsilon = 1e-6
-    v0, v1, v2 = triangle_vertices
+    v0, v1, v2 = triangle
 
     edge1 = v1 - v0
     edge2 = v2 - v0
-    h = np.cross(ray_directions, edge2)
+    h = np.cross(directions, edge2)
     a = np.dot(edge1, h.T)
 
     parallel_mask = np.abs(a) < epsilon
@@ -21,140 +28,108 @@ def ray_triangle_intersection(ray_origin, ray_directions, triangle_vertices):
     non_zero_a_indices = np.abs(a) >= epsilon
     f[non_zero_a_indices] = 1.0 / a[non_zero_a_indices]
     
-    s = ray_origin - v0
+    s = origins - v0
     u = f * np.dot(s, h.T)
 
     valid_u = (u >= 0) & (u <= 1)
     q = np.cross(s, edge1)
-    v = f * np.dot(ray_directions, q.T)
+    v = f * np.dot(directions, q.T)
 
     valid_v = (v >= 0) & (u + v <= 1)
     t = f * np.dot(edge2, q.T)
     valid_t = t > epsilon
 
-    intersection_mask = ~parallel_mask & valid_u & valid_v & valid_t
-    intersection_points = ray_origin + ray_directions * t.reshape(-1, 1)
+    mask = ~parallel_mask & valid_u & valid_v & valid_t
+    intersects = origins + directions * t.reshape(-1, 1)
     
-    return intersection_mask, intersection_points
+    return mask, intersects
 
-def trace(objects, ray_origin, ray_directions, background_color):
-    total_rays = ray_directions.shape[0]
-    min_t_values = np.full(total_rays, np.inf)
-    object_indices = np.full(total_rays, -1, dtype=int)
-    tri_normals = np.full((total_rays, 3), [0.0, 0.0, 0.0], dtype=float)
-    color_values = np.full((total_rays, 3), background_color, dtype=float)
-    reflectivity_values = np.full(total_rays, 0.0, dtype=float)
-    ior_values = np.full(total_rays, 0.0, dtype=float)
+def trace(objects: List[Object], origins: ndf64, directions: ndf64, bgc: List[int]) -> Tuple[ndf64, ndi8, ndf64, ndf64, ndf64, ndf64]:
+    n = directions.shape[0]
+    t = np.full(n, np.inf, dtype=np.float64)
+    obj_indices = np.full(n, -1, dtype=np.int8)
+    normals = np.full((n, 3), [0.0, 0.0, 0.0], dtype=np.float64)
+    colors = np.full((n, 3), bgc, dtype=np.float64)
+    reflectivity = np.full(n, 0.0, dtype=np.float64)
+    ior = np.full(n, 0.0, dtype=np.float64)
 
     for obj_index, obj in enumerate(objects):
-        triangle_vertices = obj.vertices[obj.faces]
-
-        for tri_index, triangle in enumerate(triangle_vertices):
-            hit, intersection_points = ray_triangle_intersection(ray_origin, ray_directions, triangle)
-            t_values = np.linalg.norm(intersection_points - ray_origin, axis=-1)
+        triangles = obj.vertices[obj.faces]
+        for tri_index, tri in enumerate(triangles):
+            hit, intersects = ray_triangle_intersection(origins, directions, tri)
+            t_update = np.linalg.norm(intersects - origins, axis=-1)
             hit = np.diagonal(hit) if len(hit.shape) > 1 else hit
-            update_mask = (t_values < min_t_values) & hit
-            min_t_values[update_mask] = t_values[update_mask]
-            object_indices[update_mask] = obj_index
-            tri_normals[update_mask] = obj.normals[tri_index] # check if this is the correct usage of a mask in this situation
-            color_values[update_mask] = obj.color
-            reflectivity_values[update_mask] = obj.reflectivity
-            ior_values[update_mask] = obj.ior
+            mask = (t_update < t) & hit
+            t[mask], obj_indices[mask], normals[mask] = t_update[mask], obj_index, obj.normals[tri_index]
+            colors[mask], reflectivity[mask], ior[mask] = obj.color, obj.reflectivity, obj.ior
 
-    return min_t_values, object_indices, tri_normals, color_values, reflectivity_values, ior_values
+    return t, obj_indices, normals, colors, reflectivity, ior
 
-def shade(objects, lights, intersection_points, hit_normals, object_indices, background_color):
-    n = intersection_points.shape[0]
-    hit_colors = np.zeros((n, 3), dtype=np.float32)
+def shade(objects: List[Object], lights: List[Light], intersects: ndf64, normals: ndf64, obj_indices: ndi8, bgc: ndf64) -> ndf64:
+    n = intersects.shape[0]
+    colors = np.zeros((n, 3), dtype=np.float64)
 
     for light in lights:
-        light_directions = light.position - intersection_points
-        len2 = np.sum(light_directions * light_directions, axis=-1)
+        light_directions = light.position - intersects
+        len2 = np.sum(light_directions ** 2, axis=-1)
         normalized_light_directions = light_directions / np.sqrt(len2).reshape(-1, 1)
 
-        shadow_ray_t, shadow_ray_indices, _, _, _, _ = trace(objects, intersection_points, normalized_light_directions, background_color)
+        t, indices = trace(objects, intersects, normalized_light_directions, bgc)[:2]
+        in_shadow = (indices != -1) & (t ** 2 < len2)
+        cos_theta = np.einsum('ij,ij->i', normals, normalized_light_directions)
 
-        shadow_ray_len2 = shadow_ray_t * shadow_ray_t
-        isInShadow = (shadow_ray_indices != -1) & (shadow_ray_len2 < len2)
+        for i in range(n): 
+            colors[i] = objects[obj_indices[i]].color * light.intensity * max(0, cos_theta[i]) * (1 - in_shadow[i])
 
-        cos_theta = np.einsum('ij,ij->i', hit_normals, normalized_light_directions)
-        for i in range(n):
-            obj = objects[object_indices[i]]
-            hit_colors[i] = obj.color * light.intensity * max(0, cos_theta[i]) * (1 - isInShadow[i])
+    return colors
 
-    return hit_colors
+def reflect(origins: ndf64, directions: ndf64, normals: ndf64, colors: ndf64, reflectivity: ndf64, bgc: List[int], bias: float) -> Tuple[ndf64, ndf64, ndf64]:
+    origins = origins + normals * bias
+    directions = directions - 2 * np.einsum('ij,ij->i', directions, normals)[:, np.newaxis] * normals
+    colors = reflectivity[:, np.newaxis] * colors + (1 - reflectivity[:, np.newaxis]) * bgc
+    return origins, directions, colors
 
-def reflect(ray_origins, ray_directions, hit_normals, reflectivity_values, color_values, background_color, bias):
-    ray_origins = ray_origins + hit_normals * bias
-    ray_directions = ray_directions - 2 * np.einsum('ij,ij->i', ray_directions, hit_normals)[:, np.newaxis] * hit_normals
-    hit_colors = reflectivity_values[:, np.newaxis] * color_values + (1 - reflectivity_values[:, np.newaxis]) * background_color
-    return ray_origins, ray_directions, hit_colors
-
-# TODO: implement soon
-def refract(incident_rays, normals, ior_values):
-    cosi = np.clip(np.einsum('ij,ij->i', incident_rays, normals), -1, 1)
-    etai = np.ones_like(cosi)
-    etat = ior_values
-    n = np.where(cosi[:, np.newaxis] < 0, normals, -normals)
-    cosi = np.abs(cosi)
-    eta = etai / etat
-    k = 1 - eta**2 * (1 - cosi**2)
-    return np.where(k[:, np.newaxis] < 0, 0, eta[:, np.newaxis] * incident_rays + (eta * cosi - np.sqrt(k))[:, np.newaxis] * n)
-
-def calculate_scene(w, h, cam, objects, lights):
-    background_color = [6, 20, 77]
-    image_hit_colors = np.zeros((h * w, 3), dtype=np.float32)
-    intersection_mask = None
-    max_depth = 3
-
-    primary_rays = cam.primary_rays(w, h)
-    ray_origins, ray_directions = cam.position, primary_rays
-
-    for current_depth in range(max_depth):
-        print(f'pass {current_depth+1}...')
+def calculate_scene(w: int, h: int, bgc: List[int], mrd: int, cam: Camera, objects: List[Object], lights: List[Light]) -> ndf64:
+    image = np.zeros((h * w, 3), dtype=np.float64)
+    origins, directions = cam.position, cam.primary_rays(w, h)
+    mask = None
+    for depth in range(mrd):
+        print(f'pass {depth+1}...')
 
         st = time.time()
-        min_t_values, object_indices, hit_normals, color_values, reflectivity_values, ior_values = trace(objects, ray_origins, ray_directions, background_color)
+        t, obj_indices, normals, colors, reflectivity, ior = trace(objects, origins, directions, bgc)
         print('primary rays cast:', time.time() - st)
         
-        intersection_points = ray_origins + ray_directions * min_t_values.reshape(-1, 1)
-        current_intersection_mask = object_indices != -1
-
-        if intersection_mask is not None:
-            previous_mask = np.full(h * w, False, dtype=bool)
-            previous_mask[intersection_mask] = current_intersection_mask
-            intersection_mask = previous_mask
-        else:
-            intersection_mask = current_intersection_mask
+        intersects = origins + directions * t.reshape(-1, 1)
         
-        ray_origins = intersection_points[current_intersection_mask]
-        ray_directions = ray_directions[current_intersection_mask]
-        hit_normals = hit_normals[current_intersection_mask]
-        color_values = color_values[current_intersection_mask]
-        reflectivity_values = reflectivity_values[current_intersection_mask]
-        ior_values = ior_values[current_intersection_mask]
-        object_indices = object_indices[current_intersection_mask]
-
+        current_mask = obj_indices != -1
+        if mask is not None:
+            mask[mask] = current_mask
+        else:
+            mask = current_mask
+        
+        obj_indices = obj_indices[current_mask]
+        origins, directions, normals = intersects[current_mask], directions[current_mask], normals[current_mask]
+        colors, reflectivity, ior = colors[current_mask], reflectivity[current_mask], ior[current_mask]
+ 
         st = time.time()
-        hit_colors = shade(objects, lights, ray_origins, hit_normals, object_indices, background_color)
-        image_hit_colors[intersection_mask] += hit_colors
+        colors = shade(objects, lights, origins, normals, obj_indices, bgc)
+        image[mask] += colors
         print('shade compute time:', time.time() - st)
 
         st = time.time()
-        ray_origins, ray_directions, hit_colors = reflect(ray_origins, ray_directions, hit_normals, reflectivity_values, color_values, background_color, 1e-4)
-        image_hit_colors[intersection_mask] += hit_colors
+        origins, directions, colors = reflect(origins, directions, normals, reflectivity, colors, bgc, 1e-4)
+        image[mask] += colors
         print('reflect compute time:', time.time() - st)
 
-    no_hit_mask = np.all(image_hit_colors == 0, axis=-1)    
-    image_hit_colors[no_hit_mask] += background_color
+    no_hit_mask = np.all(image == 0, axis=-1)    
+    image[no_hit_mask] += bgc
+    return np.clip(image, 0, 255).astype(np.uint8)
 
-    image_hit_colors = np.clip(image_hit_colors, 0, 255).astype(np.uint8)
-    return image_hit_colors
+def render(cam: Camera, params: SceenParams, objects: List[Object], lights: List[Light]) -> None:
+    st = time.time()
+    rendered_image = calculate_scene(params.w, params.h, params.bgc, params.mrd, cam, objects, lights)
+    print(f'\nTotal Render Time: {time.time() - st:.4f}s')
 
-def render(w, h, cam, objects, lights):
-    tst = time.time()
-    hit_color_image = calculate_scene(w, h, cam, objects, lights)
-    print(f'\nTotal Render Time: {time.time() - tst:.4f}s')
-
-    rendered_image = Image.fromarray(hit_color_image.reshape(h, w, 3), 'RGB')
-    rendered_image.show()
+    image = Image.fromarray(rendered_image.reshape(params.h, params.w, 3), 'RGB')
+    image.show()

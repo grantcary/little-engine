@@ -12,6 +12,7 @@ spherical_1 = Light('Spherical 1', position=[0, 3, 3], intensity=1.0)
 lights = [spherical_1]
 
 cam = Camera(position=[0, 0, 5], rotation=[0, 180, 0], fov=90, aspect_ratio=1)
+params = SceenParams(100, 100, [6, 20, 77], 3)
 
 print('Total Triangles in Scene:', sum([len(o.faces) for o in objects]))
-render(100, 100, cam, objects, lights)
+render(cam, params, objects, lights)

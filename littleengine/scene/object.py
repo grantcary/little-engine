@@ -39,7 +39,7 @@ class Object:
         max_length = max(len(sublist) for sublist in faces)
         padded_list = [sublist + [np.nan] * (max_length - len(sublist)) for sublist in faces]
 
-        return np.array(vertices), np.array(padded_list, dtype=np.int64)
+        return np.array(vertices, dtype=np.float64), np.array(padded_list, dtype=np.int64)
 
     def write_file(self, output_path: str):
         obj_data = []
