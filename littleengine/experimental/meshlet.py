@@ -8,21 +8,16 @@ from scipy.spatial import cKDTree
 # https://github.com/zeux/meshoptimizer/blob/master/src/clusterizer.cpp
 
 class Meshlet():
-    def __init__(self, index, triangles = np.array([], dtype=int)):
-        self.index = index
+    def __init__(self, triangles = np.array([], dtype=int)):
         self.triangles = triangles
         self.centroid = np.array([0, 0, 0], dtype=float)
         self.normal = np.array([0, 0, 0], dtype=float)
 
     def compute_cone(self):
-        triangle_count = len(self.triangles)
-
-        center_scale = 0.0 if triangle_count == 0 else 1.0 / float(triangle_count)
-        self.centroid *= center_scale
-
-        axis_length = np.sum(self.normal * self.normal)
-        axis_scale = 0.0 if axis_length == 0.0 else 1.0 / sqrt(axis_length)
-        self.normal *= axis_scale
+        n = len(self.triangles)
+        self.centroid *= 0.0 if n == 0 else 1.0 / float(n)
+        axis_length = np.sum(self.normal**2)
+        self.normal *= 0.0 if axis_length == 0.0 else 1.0 / sqrt(axis_length)
 
 def generate_triangle_adjacency(object):
     counts = np.bincount(object.faces.flatten(), minlength=object.vertices.shape[0])
@@ -54,18 +49,13 @@ def compute_triangle_cones(object):
     v0 = object.vertices[object.faces[:, 0]]
     v1 = object.vertices[object.faces[:, 1]]
     v2 = object.vertices[object.faces[:, 2]]
-
     normal = np.cross(v1 - v0, v2 - v0, axis=1)
-    
     area = np.sqrt(np.sum(normal ** 2, axis=1))
     invarea = np.where(area == 0.0, 0.0, 1.0 / area)
-
     centroids = (v0 + v1 + v2 / 3.0).reshape(object.faces.shape)
     normals = normal * invarea[:, np.newaxis]
-    
-    mesh_area = np.sum(area)
-        
-    return centroids, normals, mesh_area
+    area = np.sum(area)
+    return centroids, normals, area
 
 def topological_score(object, neighbors, live_triangles):
     return np.sum(live_triangles[object.faces[neighbors]], axis=1) - 3
@@ -126,9 +116,8 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126, cone_weight=0.0):
     used_triangles = np.full(len(object.faces), False, dtype=bool)
     used_vertices = np.full(len(object.vertices), False, dtype=bool)
 
-    meshlet_index = 0
     while total_triangles > 0:
-        meshlet = Meshlet(meshlet_index)
+        meshlet = Meshlet()
         valid_triangle_indices, tree = generate_kdtree(used_triangles, centroids)
 
         vertex_count = 0
@@ -180,8 +169,6 @@ def meshlet_gen(object, max_vertices=64, max_triangles=126, cone_weight=0.0):
 
         used_vertices[object.faces[meshlet.triangles].flatten()] = False
         meshlets.append(meshlet)
-        meshlet_index += 1
-    
     return meshlets
 
 def simple_meshlet_gen(object, max_vertices=64, max_triangles=126):
@@ -194,9 +181,8 @@ def simple_meshlet_gen(object, max_vertices=64, max_triangles=126):
     used_triangles = np.full(len(object.faces), False, dtype=bool)
     used_vertices = np.full(len(object.vertices), False, dtype=bool)
 
-    meshlet_index = 0
     while total_triangles > 0:
-        meshlet = Meshlet(meshlet_index)
+        meshlet = Meshlet()
         valid_triangle_indices, tree = generate_kdtree(used_triangles, centroids)
 
         vertex_count = 0
@@ -225,7 +211,5 @@ def simple_meshlet_gen(object, max_vertices=64, max_triangles=126):
             vertex_count += used_extra
 
         used_vertices[object.faces[meshlet.triangles].flatten()] = False
-        meshlets.append(meshlet)
-        meshlet_index += 1
-    
+        meshlets.append(meshlet)    
     return meshlets

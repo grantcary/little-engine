@@ -1,9 +1,8 @@
 import numpy as np
 
 class BVH():
-    def __init__(self, bounding_box = None, object_index = None, left = None, right = None, leaf = False):
+    def __init__(self, bounding_box = None, left = None, right = None, leaf = False):
         self.bounding_box = bounding_box
-        self.object_index = object_index
         self.left = left
         self.right = right
         self.leaf = leaf
@@ -56,7 +55,7 @@ def merge_bounds(b1, b2):
 
 def generate_and_build_tree(object, meshlets):
     if len(meshlets) == 1:
-        return BVH(bounding_box=Bounding_Box(object.vertices[object.faces[meshlets[0].triangles]].reshape(-1, 3)), object_index=meshlets[0].index, leaf=True)
+        return BVH(bounding_box=Bounding_Box(object.vertices[object.faces[meshlets[0].triangles]].reshape(-1, 3)), leaf=True)
 
     mid = len(meshlets) // 2
 
