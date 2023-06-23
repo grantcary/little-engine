@@ -15,6 +15,65 @@ from .utils import SceenParams
 ndf64 = NDArray[np.float64]
 ndi8 = NDArray[np.int8]
 
+@njit
+def classic_rti(origin, direction, triangle):
+    epsilon = 1e-6
+    v0, v1, v2 = triangle
+
+    edge1 = v1 - v0
+    edge2 = v2 - v0
+
+    h = np.cross(direction, edge2)
+    a = np.dot(edge1, h.T)
+
+    parallel_mask = np.abs(a) < epsilon
+
+    f = 1.0 / a
+    s = origin - v0
+    u = f * np.dot(s, h.T)
+
+    valid_u = (u >= 0) & (u <= 1)
+    q = np.cross(s, edge1)
+    v = f * np.dot(direction, q.T)
+
+    valid_v = (v >= 0) & (u + v <= 1)
+    t = f * np.dot(edge2, q.T)
+    valid_t = t > epsilon
+
+    intersection_mask = ~parallel_mask & valid_u & valid_v & valid_t
+    intersection_points = origin + direction * t
+
+    return intersection_mask, intersection_points
+
+@njit
+def numba_optimized_trace(triangles, origins, directions, hit, intersects):
+    for i in range(len(origins)):
+        for j in range(len(triangles)):
+            a, b = classic_rti(origins[i], directions[i], triangles[j])
+            hit[j, i], intersects[j, i] = a, b
+
+def trace_intializer(objects, origins, directions):
+    n = directions.shape[0]
+    t = np.full(n, np.inf, dtype=np.float64)
+    obj_indices = np.full(n, -1, dtype=np.int8)
+    for obj_index, obj in enumerate(objects):
+        triangles = obj.vertices[obj.faces]
+        m = triangles.shape[0]
+        hit = np.zeros((m, n), dtype=bool)
+        intersects = np.full((m, n, 3), np.inf, dtype=np.float64)
+        st = time.time()
+        numba_optimized_trace(triangles, origins, directions, hit, intersects)
+        print(f'Optimized Trace {obj_index}: {time.time() - st}')
+
+        for i in range(m):
+            t_update = np.linalg.norm(intersects[i] - origins, axis=-1)
+            mask = (t_update < t) &  hit[i]
+            t[mask] = t_update[mask]
+            obj_indices[mask] = obj_index
+    return t, obj_indices
+
+############## DO NOT TOUCH ##############
+
 def ray_triangle_intersection(origins: ndf64, directions: ndf64, triangle: ndf64) -> Tuple[ndi8, ndf64]:
     epsilon = 1e-6
     v0, v1, v2 = triangle
@@ -46,9 +105,6 @@ def filter_rays(objects: List[Object], origins: ndf64, rays: ndf64) -> ndi8:
                 hit[i] = True
     return hit
 
-# @njit
-# def numba_optimized_trace(triangles, tri_index, origins, directions):
-
 def trace(objects: List[Object], origins: ndf64, directions: ndf64, bgc: List[int], use_bvh: bool) -> Tuple[ndf64, ndi8, ndf64, ndf64, ndf64, ndf64]:
     n = directions.shape[0]
     t = np.full(n, np.inf, dtype=np.float64)
@@ -60,14 +116,13 @@ def trace(objects: List[Object], origins: ndf64, directions: ndf64, bgc: List[in
 
     use_filter = len(origins.shape) > 1 and use_bvh
     if use_filter: filter_mask = filter_rays(objects, origins, directions)
-    
+    origins_filtered = origins[filter_mask] if use_filter else origins
+    directions_filtered = directions[filter_mask] if use_filter else directions
+    t_filtered = t[filter_mask] if use_filter else t
+
     for obj_index, obj in enumerate(objects):
         triangles = obj.vertices[obj.faces]
         for tri_index, tri in enumerate(triangles):
-            origins_filtered = origins[filter_mask] if use_filter else origins
-            directions_filtered = directions[filter_mask] if use_filter else directions
-            t_filtered = t[filter_mask] if use_filter else t
-
             hit, intersects = ray_triangle_intersection(origins_filtered, directions_filtered, tri)
             t_update = np.linalg.norm(intersects - origins_filtered, axis=-1)
 
@@ -76,6 +131,7 @@ def trace(objects: List[Object], origins: ndf64, directions: ndf64, bgc: List[in
 
             t[indices[mask]], obj_indices[indices[mask]], normals[indices[mask]] = t_update[mask], obj_index, obj.normals[tri_index]
             colors[indices[mask]], reflectivity[indices[mask]], ior[indices[mask]] = obj.color, obj.reflectivity, obj.ior
+        # normals = obj.normals[range(m)] TODO: implement this
     return t, obj_indices, normals, colors, reflectivity, ior
 
 def shade(objects: List[Object], lights: List[Light], intersects: ndf64, normals: ndf64, obj_indices: ndi8, bgc: ndf64, use_bvh: bool) -> ndf64:
@@ -89,7 +145,10 @@ def shade(objects: List[Object], lights: List[Light], intersects: ndf64, normals
         len2 = np.sum(light_directions**2, axis=-1)
         normalized_light_directions = light_directions / np.sqrt(len2).reshape(-1, 1)
 
-        t, indices = trace(objects, intersects, normalized_light_directions, bgc, use_bvh)[:2]
+        st = time.time()
+        t, indices = trace_intializer(objects, intersects, normalized_light_directions)
+        print(f'Shadow Compute: {time.time() - st}')
+
         in_shadow = (indices != -1) & (t**2 < len2)
         cos_theta = np.einsum('ij,ij->i', normals, normalized_light_directions)
 
@@ -107,10 +166,10 @@ def render_experimental(cam: Camera, params: SceenParams, objects: List[Object],
     image = np.zeros((params.h * params.w, 3), dtype=np.float64)
     origins, directions = cam.position, cam.primary_rays(params.w, params.h)
     mask = None
-    pbar = tqdm(total=params.depth, desc='Ray Depth')
+    # pbar = tqdm(total=params.depth, desc='Ray Depth')
     for i in range(params.depth):
         t, obj_indices, normals, colors, reflectivity, ior = trace(objects, origins, directions, params.bgc, params.use_bvh)
-        if t.shape[0] == 0: pbar.update(params.depth - i); break
+        # if t.shape[0] == 0: pbar.update(params.depth - i); break
         intersects = origins + directions * t.reshape(-1, 1)
         
         current_mask = obj_indices != -1
@@ -124,8 +183,8 @@ def render_experimental(cam: Camera, params: SceenParams, objects: List[Object],
         origins, directions, colors = reflect(origins, directions, normals, colors, reflectivity, params.bgc, 1e-4)
         image[mask] += colors
 
-        pbar.update()
-    pbar.close()
+    #     pbar.update()
+    # pbar.close()
    
     image[np.all(image == 0, axis=-1)] += params.bgc
     rendered_image = np.clip(image, 0, 255).astype(np.uint8)

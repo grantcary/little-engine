@@ -56,14 +56,13 @@ def trace(objects: List[Object], origins: ndf64, directions: ndf64, bgc: List[in
 
     use_filter = len(origins.shape) > 1 and use_bvh
     if use_filter: filter_mask = filter_rays(objects, origins, directions)
-    
+    origins_filtered = origins[filter_mask] if use_filter else origins
+    directions_filtered = directions[filter_mask] if use_filter else directions
+    t_filtered = t[filter_mask] if use_filter else t
+
     for obj_index, obj in enumerate(objects):
         triangles = obj.vertices[obj.faces]
         for tri_index, tri in enumerate(triangles):
-            origins_filtered = origins[filter_mask] if use_filter else origins
-            directions_filtered = directions[filter_mask] if use_filter else directions
-            t_filtered = t[filter_mask] if use_filter else t
-
             hit, intersects = ray_triangle_intersection(origins_filtered, directions_filtered, tri)
             t_update = np.linalg.norm(intersects - origins_filtered, axis=-1)
 
