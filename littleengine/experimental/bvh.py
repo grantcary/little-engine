@@ -53,14 +53,14 @@ class Bounding_Box():
 def merge_bounds(b1, b2):
     return np.column_stack((np.maximum(b1[:, 0], b2[:, 0]), np.minimum(b1[:, 1], b2[:, 1])))
 
-def generate_and_build_tree(object, meshlets):
+def bounding_volume_hierarchy(object, meshlets) -> BVH:
     if len(meshlets) == 1:
         return BVH(bounding_box=Bounding_Box(object.vertices[object.faces[meshlets[0].triangles]].reshape(-1, 3)), leaf=True)
 
     mid = len(meshlets) // 2
 
-    left = generate_and_build_tree(object, meshlets[:mid])
-    right = generate_and_build_tree(object, meshlets[mid:])
+    left = bounding_volume_hierarchy(object, meshlets[:mid])
+    right = bounding_volume_hierarchy(object, meshlets[mid:])
 
     node = BVH(left=left, right=right)
 
@@ -75,6 +75,3 @@ def generate_and_build_tree(object, meshlets):
         node.bounding_box = right.bounding_box
 
     return node
-
-def bounding_volume_hierarchy(object, meshlets) -> BVH:
-    return generate_and_build_tree(object, meshlets)

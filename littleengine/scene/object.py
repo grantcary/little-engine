@@ -4,12 +4,15 @@ from littleengine.experimental.bvh import bounding_volume_hierarchy
 import numpy as np
 
 class Object:
-    def __init__(self, name=None, path=None, position=[0.0, 0.0, 0.0], color=[255, 255, 255], luminance=0.0, reflectivity=0.0, ior=0.0, bvh=False):
+    def __init__(self, name=None, path=None, position=[0.0, 0.0, 0.0], scale=1, 
+                 color=[255, 255, 255], luminance=0.0, reflectivity=0.0, ior=0.0,
+                 bvh=False):
         self.name = name
         self.position = np.array(position, dtype=np.float32)
         self.mesh = mesh.Mesh(*self.read_file(path))
         self.mesh.triangulate()
         self.mesh.translate(*position)
+        self.scale(scale)
 
         self.vertices = self.mesh.vertices
         self.faces = self.mesh.faces
@@ -61,6 +64,9 @@ class Object:
     def translate(self, x, y, z):
         self.position += np.array([x, y, z])
         self.mesh.translate(x, y, z)
+
+    def scale(self, s):
+        self.mesh.vertices *= s
 
     def meshlet_bvh(self, sort_meshlets=True, sort_axis=2):
         meshlets = meshlet_gen(self)

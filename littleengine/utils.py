@@ -3,11 +3,12 @@ import numpy as np
 from typing import List
 
 class SceenParams():
-  def __init__(self, width: int = 100, height: int = 100, background_color: List[int] = [6, 20, 77], max_ray_depth: int = 3):
+  def __init__(self, width: int = 100, height: int = 100, background_color: List[int] = [6, 20, 77], max_ray_depth: int = 3, use_bvh: bool = False):
     self.w = width
     self.h = height
     self.bgc = background_color
     self.depth = max_ray_depth
+    self.use_bvh = use_bvh
 
 def rotation_matrix(euler_angles):
     rx, ry, rz = np.radians(euler_angles)
