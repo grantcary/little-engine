@@ -16,7 +16,7 @@ ndf64 = NDArray[np.float64]
 ndi8 = NDArray[np.int8]
 
 @njit
-def classic_rti(origin, direction, triangle):
+def optimized_ray_triangle_intersection(origin, direction, triangle):
     epsilon = 1e-6
     v0, v1, v2 = triangle
 
@@ -46,33 +46,36 @@ def classic_rti(origin, direction, triangle):
     return intersection_mask, intersection_points
 
 @njit
-def numba_optimized_trace(triangles, origins, directions, hit, intersects):
-    for i in range(len(origins)):
+def optimized_trace_execute(triangles, origins, directions, hit, intersects):
+    for i in range(len(directions)):
         for j in range(len(triangles)):
-            a, b = classic_rti(origins[i], directions[i], triangles[j])
-            hit[j, i], intersects[j, i] = a, b
+            hit[j, i], intersects[j, i] = optimized_ray_triangle_intersection(origins[i], directions[i], triangles[j])
 
-def trace_intializer(objects, origins, directions):
+def optimized_trace(objects, origins, directions, bgc):
     n = directions.shape[0]
     t = np.full(n, np.inf, dtype=np.float64)
     obj_indices = np.full(n, -1, dtype=np.int8)
+    normals = np.full((n, 3), [0.0, 0.0, 0.0], dtype=np.float64)
+    color = np.full((n, 3), bgc, dtype=np.float64)
+    reflectivity = np.full(n, 0.0, dtype=np.float64)
+    ior = np.full(n, 0.0, dtype=np.float64)
     for obj_index, obj in enumerate(objects):
         triangles = obj.vertices[obj.faces]
         m = triangles.shape[0]
         hit = np.zeros((m, n), dtype=bool)
         intersects = np.full((m, n, 3), np.inf, dtype=np.float64)
-        st = time.time()
-        numba_optimized_trace(triangles, origins, directions, hit, intersects)
-        print(f'Optimized Trace {obj_index}: {time.time() - st}')
+        optimized_trace_execute(triangles, origins, directions, hit, intersects)
 
         for i in range(m):
             t_update = np.linalg.norm(intersects[i] - origins, axis=-1)
             mask = (t_update < t) &  hit[i]
             t[mask] = t_update[mask]
             obj_indices[mask] = obj_index
-    return t, obj_indices
-
-############## DO NOT TOUCH ##############
+            normals[mask] = obj.normals[i]
+            color[mask] = obj.color
+            reflectivity[mask] = obj.reflectivity
+            ior[mask] = obj.ior
+    return t, obj_indices, normals, color, reflectivity, ior
 
 def ray_triangle_intersection(origins: ndf64, directions: ndf64, triangle: ndf64) -> Tuple[ndi8, ndf64]:
     epsilon = 1e-6
@@ -131,7 +134,6 @@ def trace(objects: List[Object], origins: ndf64, directions: ndf64, bgc: List[in
 
             t[indices[mask]], obj_indices[indices[mask]], normals[indices[mask]] = t_update[mask], obj_index, obj.normals[tri_index]
             colors[indices[mask]], reflectivity[indices[mask]], ior[indices[mask]] = obj.color, obj.reflectivity, obj.ior
-        # normals = obj.normals[range(m)] TODO: implement this
     return t, obj_indices, normals, colors, reflectivity, ior
 
 def shade(objects: List[Object], lights: List[Light], intersects: ndf64, normals: ndf64, obj_indices: ndi8, bgc: ndf64, use_bvh: bool) -> ndf64:
@@ -145,9 +147,9 @@ def shade(objects: List[Object], lights: List[Light], intersects: ndf64, normals
         len2 = np.sum(light_directions**2, axis=-1)
         normalized_light_directions = light_directions / np.sqrt(len2).reshape(-1, 1)
 
-        st = time.time()
-        t, indices = trace_intializer(objects, intersects, normalized_light_directions)
-        print(f'Shadow Compute: {time.time() - st}')
+        # st = time.time()
+        t, indices = optimized_trace(objects, intersects, normalized_light_directions, bgc)[:2]
+        # print(f'Shadow Compute: {time.time() - st}')
 
         in_shadow = (indices != -1) & (t**2 < len2)
         cos_theta = np.einsum('ij,ij->i', normals, normalized_light_directions)
@@ -166,10 +168,17 @@ def render_experimental(cam: Camera, params: SceenParams, objects: List[Object],
     image = np.zeros((params.h * params.w, 3), dtype=np.float64)
     origins, directions = cam.position, cam.primary_rays(params.w, params.h)
     mask = None
-    # pbar = tqdm(total=params.depth, desc='Ray Depth')
+    pbar = tqdm(total=params.depth, desc='Ray Depth')
     for i in range(params.depth):
-        t, obj_indices, normals, colors, reflectivity, ior = trace(objects, origins, directions, params.bgc, params.use_bvh)
-        # if t.shape[0] == 0: pbar.update(params.depth - i); break
+        # cst = time.time()
+        if len(origins.shape) > 1:
+            t, obj_indices, normals, colors, reflectivity, ior = optimized_trace(objects, origins, directions, params.bgc)
+            # print(f'Primary Compute 2D: {time.time() - cst}')
+        else:
+            t, obj_indices, normals, colors, reflectivity, ior = trace(objects, origins, directions, params.bgc, params.use_bvh)
+            # print(f'Primary Compute 1D: {time.time() - cst}')
+
+        if t.shape[0] == 0: pbar.update(params.depth - i); break
         intersects = origins + directions * t.reshape(-1, 1)
         
         current_mask = obj_indices != -1
@@ -183,12 +192,14 @@ def render_experimental(cam: Camera, params: SceenParams, objects: List[Object],
         origins, directions, colors = reflect(origins, directions, normals, colors, reflectivity, params.bgc, 1e-4)
         image[mask] += colors
 
-    #     pbar.update()
-    # pbar.close()
+        pbar.update()
+    pbar.close()
    
     image[np.all(image == 0, axis=-1)] += params.bgc
     rendered_image = np.clip(image, 0, 255).astype(np.uint8)
-    print(f'Total Render Time: {time.time() - st:.4f}s')
+    render_time = time.time() - st
+    # print(f'Total Render Time: {render_time:.4f}s')
 
     image = Image.fromarray(rendered_image.reshape(params.h, params.w, 3), 'RGB')
-    image.show()
+    return image, render_time
+    # image.show()
