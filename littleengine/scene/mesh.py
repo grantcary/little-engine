@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 class Mesh():
     def __init__(self, vertices: np.ndarray, faces: np.ndarray = None, normals: np.ndarray = None):
@@ -8,6 +9,14 @@ class Mesh():
 
     def translate(self, x, y, z):
         self.vertices += np.array([x, y, z])
+
+    def scale(self, s):
+        self.vertices *= s
+
+    def rotate(self, rotation):
+        r = R.from_euler('xyz', np.radians(rotation))
+        self.vertices = r.apply(self.vertices)
+        self.set_normals()
 
     def set_normals(self):
         face = np.take(self.vertices, self.faces, 0)

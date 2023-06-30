@@ -2,6 +2,7 @@ from littleengine.scene import mesh
 from littleengine.experimental.meshlet import meshlet_gen
 from littleengine.experimental.bvh import bounding_volume_hierarchy
 import numpy as np
+# from scipy.spatial.transform import Rotation as R
 
 class Object:
     def __init__(self, name=None, path=None, position=[0.0, 0.0, 0.0], scale=1, 
@@ -67,6 +68,13 @@ class Object:
 
     def scale(self, s):
         self.mesh.vertices *= s
+
+    def rotate(self, rotation):
+        self.mesh.translate(*-self.position)
+        self.mesh.rotate(rotation)
+        self.mesh.translate(*self.position)
+        self.vertices = self.mesh.vertices
+        self.normals = self.mesh.normals
 
     def meshlet_bvh(self, sort_meshlets=True, sort_axis=2):
         meshlets = meshlet_gen(self)

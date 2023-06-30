@@ -6,14 +6,12 @@ class Skybox():
     def __init__(self, path):
         self.texture = np.asarray(Image.open(path))
 
-    def get_pixel(self, direction):
-        theta = math.atan2(direction[0], direction[1])
-        phi = math.acos(direction[2])
+    def get_texture(self, rays):
+        rays /= np.linalg.norm(rays, axis=-1, keepdims=True)
+        theta, phi = np.arctan2(rays[:, 0], rays[:, 1]), np.arccos(rays[:, 2])
+        u, v = (theta + math.pi) / (2 * math.pi), phi / math.pi
 
-        u = (theta + math.pi) / (2 * math.pi)
-        v = phi / math.pi
-
-        u_scaled = int(round(u * self.texture.shape[1]))
-        v_scaled = int(round(v * self.texture.shape[0]))
+        u_scaled = (u * self.texture.shape[1]).astype(np.int64)
+        v_scaled = (v * self.texture.shape[0]).astype(np.int64)
 
         return self.texture[v_scaled, u_scaled]
