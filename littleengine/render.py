@@ -1,41 +1,90 @@
-import time
+import sys, time
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
-
-from typing import List, Tuple
-from numpy.typing import NDArray
-
-from littleengine import Camera, Object, Light
-from .utils import SceenParams
+from numba import njit
 
 # np.set_printoptions(threshold=sys.maxsize)
 
-ndf64 = NDArray[np.float64]
-ndi8 = NDArray[np.int8]
+@njit
+def optimized_ray_triangle_intersection(origin, direction, triangle):
+    epsilon = 1e-6
+    v0, v1, v2 = triangle
+    edge1, edge2 = v1 - v0, v2 - v0
+    h = np.cross(direction, edge2)
+    a = np.dot(edge1, h.T)
 
-def ray_triangle_intersection(origins: ndf64, directions: ndf64, triangle: ndf64) -> Tuple[ndi8, ndf64]:
+    parallel_mask = np.abs(a) < epsilon
+
+    f = 1.0 / a
+    s = origin - v0
+    u = f * np.dot(s, h.T)
+    valid_u = (u >= 0) & (u <= 1)
+    q = np.cross(s, edge1)
+    v = f * np.dot(direction, q.T)
+    valid_v = (v >= 0) & (u + v <= 1)
+    t = f * np.dot(edge2, q.T)
+    valid_t = t > epsilon
+
+    intersection_mask = ~parallel_mask & valid_u & valid_v & valid_t
+    intersection_points = origin + direction * t
+    return intersection_mask, intersection_points
+
+@njit
+def numba_optimized_trace(triangles, origins, directions, hit, intersects):
+    for i in range(len(directions)):
+        for j in range(len(triangles)):
+            hit[j, i], intersects[j, i] = optimized_ray_triangle_intersection(origins[i], directions[i], triangles[j])
+
+def optimized_trace(objects, origins, directions, skybox):
+    n = directions.shape[0]
+    t = np.full(n, np.inf, dtype=np.float64)
+    obj_indices = np.full(n, -1, dtype=np.int8)
+    normals = np.full((n, 3), [0.0, 0.0, 0.0], dtype=np.float64)
+    color = skybox.get_texture(directions)
+    reflectivity = np.full(n, 0.0, dtype=np.float64)
+    ior = np.full(n, 0.0, dtype=np.float64)
+    for obj_index, obj in enumerate(objects):
+        triangles = obj.vertices[obj.faces]
+        m = triangles.shape[0]
+        hit = np.zeros((m, n), dtype=bool)
+        intersects = np.full((m, n, 3), np.inf, dtype=np.float64)
+        numba_optimized_trace(triangles, origins, directions, hit, intersects)
+
+        for i in range(m):
+            t_update = np.linalg.norm(intersects[i] - origins, axis=-1)
+            mask = (t_update < t) &  hit[i]
+            t[mask], obj_indices[mask], normals[mask] = t_update[mask], obj_index, obj.normals[i]
+            color[mask], reflectivity[mask], ior[mask] = obj.color, obj.reflectivity, obj.ior
+    return t, obj_indices, normals, color, reflectivity, ior
+
+def ray_triangle_intersection(origins, directions, triangle):
     epsilon = 1e-6
     v0, v1, v2 = triangle
     edge1, edge2 = v1 - v0, v2 - v0
     h = np.cross(directions, edge2)
     a = np.dot(edge1, h.T)
 
+    parallel_mask = (np.abs(a) < epsilon)
+    
     f = np.zeros_like(a)
     non_zero_a_indices = np.abs(a) >= epsilon
     f[non_zero_a_indices] = 1.0 / a[non_zero_a_indices]
-    
-    s = origins - v0
-    q = np.cross(s, edge1)
-    t = f * np.dot(edge2, q.T)
-    u = f * np.dot(s, h.T)
-    v = f * np.dot(directions, q.T)
 
-    mask = ~(np.abs(a) < epsilon) & ((u >= 0) & (u <= 1)) & ((v >= 0) & (u + v <= 1)) & (t > epsilon)
+    s = origins - v0
+    u = f * np.dot(s, h.T)
+    valid_u = (u >= 0) & (u <= 1)
+    q = np.cross(s, edge1)
+    v = f * np.dot(directions, q.T)
+    valid_v = (v >= 0) & (u + v <= 1)
+    t = f * np.dot(edge2, q.T)
+    valid_t = t > epsilon
+
+    mask = ~parallel_mask & valid_u & valid_v & valid_t
     intersects = origins + directions * t.reshape(-1, 1)
     return mask, intersects
 
-def filter_rays(objects: List[Object], origins: ndf64, rays: ndf64) -> ndi8:
+def filter_rays(objects, origins, rays):
     n = origins.shape[0]
     hit = np.zeros(n, dtype=bool)
     for object in objects:
@@ -45,12 +94,12 @@ def filter_rays(objects: List[Object], origins: ndf64, rays: ndf64) -> ndi8:
                 hit[i] = True
     return hit
 
-def trace(objects: List[Object], origins: ndf64, directions: ndf64, bgc: List[int], use_bvh: bool) -> Tuple[ndf64, ndi8, ndf64, ndf64, ndf64, ndf64]:
+def trace(objects, origins, directions, skybox, use_bvh):
     n = directions.shape[0]
     t = np.full(n, np.inf, dtype=np.float64)
     obj_indices = np.full(n, -1, dtype=np.int8)
     normals = np.full((n, 3), [0.0, 0.0, 0.0], dtype=np.float64)
-    colors = np.full((n, 3), bgc, dtype=np.float64)
+    colors = skybox.get_texture(directions)
     reflectivity = np.full(n, 0.0, dtype=np.float64)
     ior = np.full(n, 0.0, dtype=np.float64)
 
@@ -73,7 +122,7 @@ def trace(objects: List[Object], origins: ndf64, directions: ndf64, bgc: List[in
             colors[indices[mask]], reflectivity[indices[mask]], ior[indices[mask]] = obj.color, obj.reflectivity, obj.ior
     return t, obj_indices, normals, colors, reflectivity, ior
 
-def shade(objects: List[Object], lights: List[Light], intersects: ndf64, normals: ndf64, obj_indices: ndi8, bgc: ndf64, use_bvh: bool) -> ndf64:
+def shade(objects, lights, intersects, normals, obj_indices, skybox, use_bvh):
     n = intersects.shape[0]
     colors = np.zeros((n, 3), dtype=np.float64)
     t = np.full(n, np.inf, dtype=np.float64)
@@ -84,27 +133,32 @@ def shade(objects: List[Object], lights: List[Light], intersects: ndf64, normals
         len2 = np.sum(light_directions**2, axis=-1)
         normalized_light_directions = light_directions / np.sqrt(len2).reshape(-1, 1)
 
-        t, indices = trace(objects, intersects, normalized_light_directions, bgc, use_bvh)[:2]
+        t, indices = optimized_trace(objects, intersects, normalized_light_directions, skybox)[:2]
+
         in_shadow = (indices != -1) & (t**2 < len2)
         cos_theta = np.einsum('ij,ij->i', normals, normalized_light_directions)
 
         for i in range(n): colors[i] = objects[obj_indices[i]].color * light.intensity * max(0, cos_theta[i]) * (1 - in_shadow[i])
     return colors
 
-def reflect(origins: ndf64, directions: ndf64, normals: ndf64, colors: ndf64, reflectivity: ndf64, bgc: List[int], bias: float) -> Tuple[ndf64, ndf64, ndf64]:
+def reflect(origins, directions, normals, colors, reflectivity, skybox, bias):
     origins = origins + normals * bias
     directions = directions - 2 * np.einsum('ij,ij->i', directions, normals)[:, np.newaxis] * normals
-    colors = reflectivity[:, np.newaxis] * colors + (1 - reflectivity[:, np.newaxis]) * bgc
+    colors = reflectivity[:, np.newaxis] * colors + reflectivity[:, np.newaxis] * skybox.get_texture(directions)
     return origins, directions, colors
 
-def render(cam: Camera, params: SceenParams, objects: List[Object], lights: List[Light]) -> None:
+def render(params, cam, skybox, objects, lights):
     st = time.time()
     image = np.zeros((params.h * params.w, 3), dtype=np.float64)
     origins, directions = cam.position, cam.primary_rays(params.w, params.h)
     mask = None
     pbar = tqdm(total=params.depth, desc='Ray Depth')
     for i in range(params.depth):
-        t, obj_indices, normals, colors, reflectivity, ior = trace(objects, origins, directions, params.bgc, params.use_bvh)
+        if len(origins.shape) > 1:
+            t, obj_indices, normals, colors, reflectivity, ior = optimized_trace(objects, origins, directions, skybox)
+        else:
+            t, obj_indices, normals, colors, reflectivity, ior = trace(objects, origins, directions, skybox, params.use_bvh)
+
         if t.shape[0] == 0: pbar.update(params.depth - i); break
         intersects = origins + directions * t.reshape(-1, 1)
         
@@ -115,16 +169,17 @@ def render(cam: Camera, params: SceenParams, objects: List[Object], lights: List
         origins, directions, normals = intersects[current_mask], directions[current_mask], normals[current_mask]
         colors, reflectivity, ior = colors[current_mask], reflectivity[current_mask], ior[current_mask]
  
-        image[mask] += shade(objects, lights, origins, normals, obj_indices[current_mask], params.bgc, params.use_bvh)
-        origins, directions, colors = reflect(origins, directions, normals, colors, reflectivity, params.bgc, 1e-4)
+        image[mask] += shade(objects, lights, origins, normals, obj_indices[current_mask], skybox, params.use_bvh)
+        origins, directions, colors = reflect(origins, directions, normals, colors, reflectivity, skybox, 1e-4)
         image[mask] += colors
 
         pbar.update()
     pbar.close()
-   
-    image[np.all(image == 0, axis=-1)] += params.bgc
+
+    no_hits = np.all(image == 0, axis=-1)
+    image[no_hits] = skybox.get_texture(cam.primary_rays(params.w, params.h)[no_hits])
     rendered_image = np.clip(image, 0, 255).astype(np.uint8)
-    print(f'Total Render Time: {time.time() - st:.4f}s')
 
     image = Image.fromarray(rendered_image.reshape(params.h, params.w, 3), 'RGB')
-    image.show()
+    render_time = time.time() - st
+    return image, render_time

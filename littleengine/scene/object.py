@@ -5,13 +5,14 @@ import numpy as np
 # from scipy.spatial.transform import Rotation as R
 
 class Object:
-    def __init__(self, name=None, path=None, position=[0.0, 0.0, 0.0], scale=1, 
-                 color=[255, 255, 255], luminance=0.0, reflectivity=0.0, ior=0.0,
+    def __init__(self, name=None, path=None, position=[0.0, 0.0, 0.0], rotate=[0.0, 0.0, 0.0], 
+                 scale=1, color=[255, 255, 255], luminance=0.0, reflectivity=0.0, ior=0.0,
                  bvh=False):
         self.name = name
         self.position = np.array(position, dtype=np.float32)
         self.mesh = mesh.Mesh(*self.read_file(path))
         self.mesh.triangulate()
+        self.mesh.rotate(rotate)
         self.mesh.translate(*position)
         self.scale(scale)
 

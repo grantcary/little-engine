@@ -4,16 +4,7 @@ from PIL import Image
 from tqdm import tqdm
 from numba import njit
 
-from typing import List, Tuple
-from numpy.typing import NDArray
-
-from littleengine import Camera, Skybox, Object, Light
-from .utils import SceenParams
-
 # np.set_printoptions(threshold=sys.maxsize)
-
-ndf64 = NDArray[np.float64]
-ndi8 = NDArray[np.int8]
 
 @njit
 def optimized_ray_triangle_intersection(origin, direction, triangle):
@@ -63,15 +54,11 @@ def optimized_trace(objects, origins, directions, skybox):
         for i in range(m):
             t_update = np.linalg.norm(intersects[i] - origins, axis=-1)
             mask = (t_update < t) &  hit[i]
-            t[mask] = t_update[mask]
-            obj_indices[mask] = obj_index
-            normals[mask] = obj.normals[i]
-            color[mask] = obj.color
-            reflectivity[mask] = obj.reflectivity
-            ior[mask] = obj.ior
+            t[mask], obj_indices[mask], normals[mask] = t_update[mask], obj_index, obj.normals[i]
+            color[mask], reflectivity[mask], ior[mask] = obj.color, obj.reflectivity, obj.ior
     return t, obj_indices, normals, color, reflectivity, ior
 
-def ray_triangle_intersection(origins: ndf64, directions: ndf64, triangle: ndf64) -> Tuple[ndi8, ndf64]:
+def ray_triangle_intersection(origins, directions, triangle):
     epsilon = 1e-6
     v0, v1, v2 = triangle
     edge1, edge2 = v1 - v0, v2 - v0
@@ -97,7 +84,7 @@ def ray_triangle_intersection(origins: ndf64, directions: ndf64, triangle: ndf64
     intersects = origins + directions * t.reshape(-1, 1)
     return mask, intersects
 
-def filter_rays(objects: List[Object], origins: ndf64, rays: ndf64) -> ndi8:
+def filter_rays(objects, origins, rays):
     n = origins.shape[0]
     hit = np.zeros(n, dtype=bool)
     for object in objects:
@@ -107,7 +94,7 @@ def filter_rays(objects: List[Object], origins: ndf64, rays: ndf64) -> ndi8:
                 hit[i] = True
     return hit
 
-def trace(objects: List[Object], origins: ndf64, directions: ndf64, skybox: List[int], use_bvh: bool) -> Tuple[ndf64, ndi8, ndf64, ndf64, ndf64, ndf64]:
+def trace(objects, origins, directions, skybox, use_bvh):
     n = directions.shape[0]
     t = np.full(n, np.inf, dtype=np.float64)
     obj_indices = np.full(n, -1, dtype=np.int8)
@@ -135,7 +122,7 @@ def trace(objects: List[Object], origins: ndf64, directions: ndf64, skybox: List
             colors[indices[mask]], reflectivity[indices[mask]], ior[indices[mask]] = obj.color, obj.reflectivity, obj.ior
     return t, obj_indices, normals, colors, reflectivity, ior
 
-def shade(objects: List[Object], lights: List[Light], intersects: ndf64, normals: ndf64, obj_indices: ndi8, skybox: ndf64, use_bvh: bool) -> ndf64:
+def shade(objects, lights, intersects, normals, obj_indices, skybox, use_bvh):
     n = intersects.shape[0]
     colors = np.zeros((n, 3), dtype=np.float64)
     t = np.full(n, np.inf, dtype=np.float64)
@@ -154,13 +141,23 @@ def shade(objects: List[Object], lights: List[Light], intersects: ndf64, normals
         for i in range(n): colors[i] = objects[obj_indices[i]].color * light.intensity * max(0, cos_theta[i]) * (1 - in_shadow[i])
     return colors
 
-def reflect(origins: ndf64, directions: ndf64, normals: ndf64, colors: ndf64, reflectivity: ndf64, skybox: List[int], bias: float) -> Tuple[ndf64, ndf64, ndf64]:
+def reflect(origins, directions, normals, colors, reflectivity, skybox, bias):
     origins = origins + normals * bias
     directions = directions - 2 * np.einsum('ij,ij->i', directions, normals)[:, np.newaxis] * normals
     colors = reflectivity[:, np.newaxis] * colors + reflectivity[:, np.newaxis] * skybox.get_texture(directions)
     return origins, directions, colors
 
-def render_experimental(params: SceenParams, cam: Camera, skybox: Skybox, objects: List[Object], lights: List[Light]) -> None:
+def refract(incident_rays, normals, ior_values):
+    cosi = np.clip(np.einsum('ij,ij->i', incident_rays, normals), -1, 1)
+    etai = np.ones_like(cosi)
+    etat = ior_values
+    n = np.where(cosi[:, np.newaxis] < 0, normals, -normals)
+    cosi = np.abs(cosi)
+    eta = etai / etat
+    k = 1 - eta**2 * (1 - cosi**2)
+    return np.where(k[:, np.newaxis] < 0, 0, eta[:, np.newaxis] * incident_rays + (eta * cosi - np.sqrt(k))[:, np.newaxis] * n)
+
+def render_experimental(params, cam, skybox, objects, lights):
     st = time.time()
     image = np.zeros((params.h * params.w, 3), dtype=np.float64)
     origins, directions = cam.position, cam.primary_rays(params.w, params.h)
