@@ -1,5 +1,5 @@
 <div align="center">
-# Little Engine
+<h1>Little Engine</h1>
 <img src='https://github.com/grantcary/little-engine/blob/main/rendered_images/skyscapeexample.PNG' alt='monkey+cube' width='960'>
 </div>
 
@@ -15,3 +15,9 @@ Supported Features:
  - Bounding Volume Hierarchy
  - Meshlets
  - Skybox (equirectangular image)
+
+# Examples:
+All examples were run on an AMD Ryzen 7 3700x (8 core) CPU
+
+The title image contained 980 triangles and was rendered at 1920 by 1080. Render Time: 4m 13s
+
