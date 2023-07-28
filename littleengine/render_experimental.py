@@ -146,33 +146,29 @@ def reflect(origins, directions, normals, bias):
     directions = directions - 2 * np.einsum('ij,ij->i', directions, normals)[:, np.newaxis] * normals
     return origins, directions
 
-# def compositor(background, shadow, reflect, reflectivity, mask):
-#     return np.clip(background, 0, 255).astype(np.uint8)
+def compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks):
+    n_layers, n_rays, _ = shadow_layers.shape
+    accumulated_reflectivity = np.ones((n_rays, 1), dtype=np.float64)
+    output = np.zeros((n_rays, 3), dtype=np.float64)
+    output[~shadow_masks[0]] += skybox_layers[0, ~shadow_masks[0]]
 
-def compositor(background, shadow_layers, reflect_layers, reflectivity_layers, mask_layers):
-    n_layers = shadow_layers.shape[0]
+    for i in range(n_layers - 1):
+        shadow_mask = shadow_masks[i]
+        reflection_contribution = reflectivity_values[i, shadow_mask, np.newaxis]
+        output[shadow_mask] += shadow_layers[i, shadow_mask] * (1 - reflection_contribution) * accumulated_reflectivity[shadow_mask]
+        output[shadow_mask] += skybox_layers[i + 1, shadow_mask] * reflection_contribution * accumulated_reflectivity[shadow_mask]
+        accumulated_reflectivity[shadow_mask] *= reflection_contribution
 
-    output = np.zeros_like(background)
-    attenuation_factor = 0.8  # Value between 0 and 1
-
-    for i in range(n_layers):
-        mask = mask_layers[i]
-        reflection_contribution = reflectivity_layers[i, mask, np.newaxis]
-        attenuation = attenuation_factor ** i
-
-        output[mask] += (shadow_layers[i, mask] * (1 - reflection_contribution) + reflect_layers[i, mask] * reflection_contribution) * attenuation
-    # output += np.where(mask_layers.any(axis=0)[:, np.newaxis], 0, background)
     return np.clip(output, 0, 255).astype(np.uint8)
 
 def render_experimental(params, cam, skybox, objects, lights):
     st = time.time()
+    shape = (params.depth, params.h * params.w)
     origins, directions = cam.position, cam.primary_rays(params.w, params.h)
-    image_skybox_background = skybox.get_texture(directions).astype(np.float64)
-    shadow_layers = np.zeros((params.depth, params.h * params.w, 3), dtype=np.float64)
-    reflect_layers = np.zeros((params.depth, params.h * params.w, 3), dtype=np.float64)
-    reflectivity_layers = np.ones((params.depth, params.h * params.w), dtype=np.float64)
-    mask_layers = np.zeros((params.depth, params.h * params.w), dtype=bool)
-    mask = None
+    shadow_layers, skybox_layers = np.zeros(shape + (3,), dtype=np.float64), np.zeros(shape + (3,), dtype=np.float64)
+    shadow_masks = np.zeros(shape, dtype=bool)
+    reflectivity_values = np.ones(shape, dtype=np.float64)
+
     pbar = tqdm(total=params.depth, desc='Ray Depth')
     for i in range(params.depth):
         if len(origins.shape) > 1:
@@ -184,82 +180,40 @@ def render_experimental(params, cam, skybox, objects, lights):
         intersects = origins + directions * t.reshape(-1, 1)
         
         current_mask = obj_indices != -1
-        if mask is not None: mask[mask] = current_mask
-        else: mask = current_mask
-        
+        if i > 0:
+            neg_mask = mask.copy()
+            neg_mask[mask] = ~current_mask
+            mask[mask] = current_mask
+        else:
+            mask = current_mask
+            neg_mask = ~current_mask
+
+        skybox_layers[i, neg_mask] = skybox.get_texture(directions[~current_mask])
+
+        # output = np.zeros((params.h * params.w, 3), dtype=np.float64)
+        # output[neg_mask] = skybox_layers[i, neg_mask]
+        # Image.fromarray(np.clip(output, 0, 255).astype(np.uint8).reshape(params.h, params.w, 3), 'RGB').show()
+
         origins, directions, normals = intersects[current_mask], directions[current_mask], normals[current_mask]
         colors, reflectivity, ior = colors[current_mask], reflectivity[current_mask], ior[current_mask]
  
         shaded_colors = shade(objects, lights, origins, normals, obj_indices[current_mask], skybox, params.use_bvh)
 
         shadow_layers[i, mask] = shaded_colors
-        reflectivity_layers[i, mask] *= reflectivity
-        mask_layers[i] = mask
+        shadow_masks[i] = mask
+
+        # output = np.full((params.h * params.w, 3), params.bgc, dtype=np.float64)
+        # output[mask] = shadow_layers[i, mask]
+        # Image.fromarray(np.clip(output, 0, 255).astype(np.uint8).reshape(params.h, params.w, 3), 'RGB').show()
+
+        reflectivity_values[i, mask] = reflectivity
 
         origins, directions = reflect(origins, directions, normals, 1e-4)
-        reflect_layers[i, mask] = skybox.get_texture(directions)
 
         pbar.update()
     pbar.close()
 
-    rendered_image = compositor(image_skybox_background, shadow_layers, reflect_layers, reflectivity_layers, mask_layers)
+    rendered_image = compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks)
     image = Image.fromarray(rendered_image.reshape(params.h, params.w, 3), 'RGB')
     render_time = time.time() - st
     return image, render_time
-
-# def reflect(origins, directions, normals, colors, reflectivity, skybox, bias):
-#     origins = origins + normals * bias
-#     directions = directions - 2 * np.einsum('ij,ij->i', directions, normals)[:, np.newaxis] * normals
-#     colors = reflectivity[:, np.newaxis] * colors + reflectivity[:, np.newaxis] * skybox.get_texture(directions)
-#     return origins, directions, colors
-
-# def render_experimental(params, cam, skybox, objects, lights):
-#     st = time.time()
-#     origins, directions = cam.position, cam.primary_rays(params.w, params.h)
-#     color_layers = np.zeros((params.depth, params.h * params.w, 3), dtype=np.float64)
-#     reflectivity_layers = np.ones((params.depth, params.h * params.w), dtype=np.float64)
-#     mask = None
-#     pbar = tqdm(total=params.depth, desc='Ray Depth')
-#     for i in range(params.depth):
-#         if len(origins.shape) > 1:
-#             t, obj_indices, normals, colors, reflectivity, ior = optimized_trace(objects, origins, directions, skybox)
-#         else:
-#             t, obj_indices, normals, colors, reflectivity, ior = trace(objects, origins, directions, skybox, params.use_bvh)
-
-#         if t.shape[0] == 0: pbar.update(params.depth - i); break
-#         intersects = origins + directions * t.reshape(-1, 1)
-        
-#         current_mask = obj_indices != -1
-#         if mask is not None: mask[mask] = current_mask
-#         else: mask = current_mask
-        
-#         origins, directions, normals = intersects[current_mask], directions[current_mask], normals[current_mask]
-#         colors, reflectivity, ior = colors[current_mask], reflectivity[current_mask], ior[current_mask]
- 
-#         shaded_colors = shade(objects, lights, origins, normals, obj_indices[current_mask], skybox, params.use_bvh)
-#         # TODO: only add shade_colors to color_layers, set reflect to only set up rays for next depth pass, reflectivity will be composited after
-#         origins, directions, reflected_colors = reflect(origins, directions, normals, colors, reflectivity, skybox, 1e-4)
-
-#         color_layers[i, mask] = shaded_colors + reflectivity[:, np.newaxis] * reflected_colors
-#         reflectivity_layers[i, mask] *= reflectivity
-#         rendered_image = np.clip(color_layers[i], 0, 255).astype(np.uint8)
-#         image = Image.fromarray(rendered_image.reshape(params.h, params.w, 3), 'RGB')
-#         image.show()
-
-#         pbar.update()
-#     pbar.close()
-
-#     image = np.zeros((params.h * params.w, 3), dtype=np.float64)
-#     accum_reflectivity = np.ones(params.h * params.w, dtype=np.float64)
-
-#     for i in range(params.depth):
-#         image += accum_reflectivity.reshape(-1, 1) * color_layers[params.depth - i - 1]
-#         accum_reflectivity *= reflectivity_layers[params.depth - i - 1]
-
-#     no_hits = np.all(image == 0, axis=-1)
-#     image[no_hits] = skybox.get_texture(cam.primary_rays(params.w, params.h)[no_hits])
-#     rendered_image = np.clip(image, 0, 255).astype(np.uint8)
-
-#     image = Image.fromarray(rendered_image.reshape(params.h, params.w, 3), 'RGB')
-#     render_time = time.time() - st
-#     return image, render_time
