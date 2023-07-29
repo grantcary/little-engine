@@ -1,6 +1,6 @@
 <div align="center">
 <h1>Little Engine</h1>
-<img src='https://github.com/grantcary/little-engine/blob/main/rendered_images/skyscapeexample.PNG' alt='monkey+cube' width='960'>
+<img src='https://github.com/grantcary/little-engine/blob/main/rendered_images/reflectexample.PNG' alt='monkey+cube' width='960'>
 </div>
 
 As far as I know, this is the fastest CPU based python ray tracer, aiming to become even faster.
@@ -17,7 +17,5 @@ Supported Features:
  - Skybox (equirectangular image)
 
 # Examples:
-All examples were run on an AMD Ryzen 7 3700x (8 core) CPU
-
-The title image contained 980 triangles and was rendered at 1920 by 1080. Render Time: 4m 13s
-
+The title image contained 982 triangles and was rendered at 1920 by 1080 with a ray depth of 10. Render Time: 12m 39s
+This same scene, rendered at 400 by 300, took 49s

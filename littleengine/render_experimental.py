@@ -190,10 +190,6 @@ def render_experimental(params, cam, skybox, objects, lights):
 
         skybox_layers[i, neg_mask] = skybox.get_texture(directions[~current_mask])
 
-        # output = np.zeros((params.h * params.w, 3), dtype=np.float64)
-        # output[neg_mask] = skybox_layers[i, neg_mask]
-        # Image.fromarray(np.clip(output, 0, 255).astype(np.uint8).reshape(params.h, params.w, 3), 'RGB').show()
-
         origins, directions, normals = intersects[current_mask], directions[current_mask], normals[current_mask]
         colors, reflectivity, ior = colors[current_mask], reflectivity[current_mask], ior[current_mask]
  
@@ -201,10 +197,6 @@ def render_experimental(params, cam, skybox, objects, lights):
 
         shadow_layers[i, mask] = shaded_colors
         shadow_masks[i] = mask
-
-        # output = np.full((params.h * params.w, 3), params.bgc, dtype=np.float64)
-        # output[mask] = shadow_layers[i, mask]
-        # Image.fromarray(np.clip(output, 0, 255).astype(np.uint8).reshape(params.h, params.w, 3), 'RGB').show()
 
         reflectivity_values[i, mask] = reflectivity
 

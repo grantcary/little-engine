@@ -141,17 +141,34 @@ def shade(objects, lights, intersects, normals, obj_indices, skybox, use_bvh):
         for i in range(n): colors[i] = objects[obj_indices[i]].color * light.intensity * max(0, cos_theta[i]) * (1 - in_shadow[i])
     return colors
 
-def reflect(origins, directions, normals, colors, reflectivity, skybox, bias):
+def reflect(origins, directions, normals, bias):
     origins = origins + normals * bias
     directions = directions - 2 * np.einsum('ij,ij->i', directions, normals)[:, np.newaxis] * normals
-    colors = reflectivity[:, np.newaxis] * colors + reflectivity[:, np.newaxis] * skybox.get_texture(directions)
-    return origins, directions, colors
+    return origins, directions
+
+def compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks):
+    n_layers, n_rays, _ = shadow_layers.shape
+    accumulated_reflectivity = np.ones((n_rays, 1), dtype=np.float64)
+    output = np.zeros((n_rays, 3), dtype=np.float64)
+    output[~shadow_masks[0]] += skybox_layers[0, ~shadow_masks[0]]
+
+    for i in range(n_layers - 1):
+        shadow_mask = shadow_masks[i]
+        reflection_contribution = reflectivity_values[i, shadow_mask, np.newaxis]
+        output[shadow_mask] += shadow_layers[i, shadow_mask] * (1 - reflection_contribution) * accumulated_reflectivity[shadow_mask]
+        output[shadow_mask] += skybox_layers[i + 1, shadow_mask] * reflection_contribution * accumulated_reflectivity[shadow_mask]
+        accumulated_reflectivity[shadow_mask] *= reflection_contribution
+
+    return np.clip(output, 0, 255).astype(np.uint8)
 
 def render(params, cam, skybox, objects, lights):
     st = time.time()
-    image = np.zeros((params.h * params.w, 3), dtype=np.float64)
+    shape = (params.depth, params.h * params.w)
     origins, directions = cam.position, cam.primary_rays(params.w, params.h)
-    mask = None
+    shadow_layers, skybox_layers = np.zeros(shape + (3,), dtype=np.float64), np.zeros(shape + (3,), dtype=np.float64)
+    shadow_masks = np.zeros(shape, dtype=bool)
+    reflectivity_values = np.ones(shape, dtype=np.float64)
+
     pbar = tqdm(total=params.depth, desc='Ray Depth')
     for i in range(params.depth):
         if len(origins.shape) > 1:
@@ -163,23 +180,32 @@ def render(params, cam, skybox, objects, lights):
         intersects = origins + directions * t.reshape(-1, 1)
         
         current_mask = obj_indices != -1
-        if mask is not None: mask[mask] = current_mask
-        else: mask = current_mask
-        
+        if i > 0:
+            neg_mask = mask.copy()
+            neg_mask[mask] = ~current_mask
+            mask[mask] = current_mask
+        else:
+            mask = current_mask
+            neg_mask = ~current_mask
+
+        skybox_layers[i, neg_mask] = skybox.get_texture(directions[~current_mask])
+
         origins, directions, normals = intersects[current_mask], directions[current_mask], normals[current_mask]
         colors, reflectivity, ior = colors[current_mask], reflectivity[current_mask], ior[current_mask]
  
-        image[mask] += shade(objects, lights, origins, normals, obj_indices[current_mask], skybox, params.use_bvh)
-        origins, directions, colors = reflect(origins, directions, normals, colors, reflectivity, skybox, 1e-4)
-        image[mask] += colors
+        shaded_colors = shade(objects, lights, origins, normals, obj_indices[current_mask], skybox, params.use_bvh)
+
+        shadow_layers[i, mask] = shaded_colors
+        shadow_masks[i] = mask
+
+        reflectivity_values[i, mask] = reflectivity
+
+        origins, directions = reflect(origins, directions, normals, 1e-4)
 
         pbar.update()
     pbar.close()
 
-    no_hits = np.all(image == 0, axis=-1)
-    image[no_hits] = skybox.get_texture(cam.primary_rays(params.w, params.h)[no_hits])
-    rendered_image = np.clip(image, 0, 255).astype(np.uint8)
-
+    rendered_image = compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks)
     image = Image.fromarray(rendered_image.reshape(params.h, params.w, 3), 'RGB')
     render_time = time.time() - st
     return image, render_time
