@@ -17,5 +17,8 @@ Supported Features:
  - Skybox (equirectangular image)
 
 # Examples:
-The title image contained 982 triangles and was rendered at 1920 by 1080 with a ray depth of 10. Render Time: 12m 39s
-This same scene, rendered at 400 by 300, took 49s
+Title Image - Triangle Count: 982, Resolution 1920x1080, Ray Depth: 10, Render Time: 12m 39s
+
+Animation - Triangle Count: 982, Resolution: 400x400, Frame Count: 60, Ray Depth: 10, Render Time: 80m 37s
+
+![animation example](https://github.com/grantcary/little-engine/blob/main/rendered_images/animationexample.gif)

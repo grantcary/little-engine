@@ -205,7 +205,7 @@ def render(params, cam, skybox, objects, lights):
         pbar.update()
     pbar.close()
 
-    rendered_image = compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks)
-    image = Image.fromarray(rendered_image.reshape(params.h, params.w, 3), 'RGB')
+    composed_image = compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks)
+    image = Image.fromarray(composed_image.reshape(params.h, params.w, 3), 'RGB')
     render_time = time.time() - st
     return image, render_time

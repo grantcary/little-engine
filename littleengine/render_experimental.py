@@ -16,7 +16,10 @@ def optimized_ray_triangle_intersection(origin, direction, triangle):
 
     parallel_mask = np.abs(a) < epsilon
 
-    f = 1.0 / a
+    large_number = 1e9
+    a_safe = np.where(parallel_mask, large_number, a)
+
+    f = 1.0 / a_safe
     s = origin - v0
     u = f * np.dot(s, h.T)
     valid_u = (u >= 0) & (u <= 1)
@@ -160,6 +163,18 @@ def compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks):
         accumulated_reflectivity[shadow_mask] *= reflection_contribution
 
     return np.clip(output, 0, 255).astype(np.uint8)
+
+# - Refraction -
+# processing one refractive object would require atleast two more depth passes after the initial intersection
+# 1. Hit object
+# 2. Ray passes through to other side of object
+# 3. Ray leaves current object and hits the next object
+# An object that is transparent can also be a bit reflective, so there will need to be 2x the tracing for any given refractive object (split ray at object intersection)
+# one way to approach this is to have a loop in the main render loop, to process the last 2 steps, possibly with in the refraction function itself
+# you might not need a loop, as long as there are always two steps to the logic
+# I might actually only need to run step 2, because step 3 would be calculated in the next pass
+# the only thing I need to consider is how to store the resulting hit colors from the rays that break off
+# also make sure that if an object is 100% reflective, but also has a refractivity value greater than 0, then the object doesnt get a seperate refract trace
 
 def render_experimental(params, cam, skybox, objects, lights):
     st = time.time()

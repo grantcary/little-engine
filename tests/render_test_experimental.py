@@ -35,7 +35,7 @@ lights = [spherical_1]
 # dot.render('binary_tree.gv', view=True)
 
 # params = SceenParams(1920, 1080, [6, 20, 77], 3, USE_BVH)
-params = SceenParams(400, 400, [6, 20, 77], 4, USE_BVH)
+params = SceenParams(100, 100, [6, 20, 77], 3, USE_BVH)
 cam = Camera(position=[0, -5, 0], rotation=[90, 0, 180], fov=90, aspect_ratio=1)
 skybox = Skybox('../littleengine/textures/puresky.jpg')
 
