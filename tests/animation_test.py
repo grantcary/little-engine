@@ -34,20 +34,20 @@ lights = [spherical_1]
 
 print('Total Triangles in Scene:', sum([len(o.faces) for o in objects]))
 
-params = SceenParams(400, 400, [6, 20, 77], 10, USE_BVH)
+params = SceenParams(400, 400, [6, 20, 77], 3, USE_BVH)
 skybox = Skybox('../littleengine/textures/puresky.jpg')
 images = []
 render_times = []
 count = 1
-start_pos = 6
-end_pos = -6
-total_frames = 60
+start_pos = 0
+end_pos = 36
+total_frames = 90
 st = time.time()
 for i in np.linspace(start_pos, end_pos, total_frames):
-    print(f'IMAGE {count + 1} / {total_frames}')
-    swing_y = 0.15 * i**2 - 5
-    pan_z = i * 10 + 180
-    cam = Camera(position=[i, swing_y, 0], rotation=[90, 0, pan_z], fov=90, aspect_ratio=1)
+    print(f'IMAGE {count} / {total_frames}')
+    pan_z = tools.linearscale(i, 0, 10)
+    circ = tools.circumference(pan_z + 90, 0, 0, 5)
+    cam = Camera(position=[circ[0], circ[1], 0], rotation=[90, 0, pan_z], fov=90, aspect_ratio=1)
 
     image, render_time = render_experimental(params, cam, skybox, objects, lights)
     print(f'Frame {count} Render Time: {render_time:.4f}s')

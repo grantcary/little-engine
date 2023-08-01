@@ -1,6 +1,17 @@
 from matplotlib import pyplot as plt
 import numpy as np
 from graphviz import Digraph
+import math
+
+def linearscale(coefficient, startposition=0, scale=1):
+  return coefficient * scale + startposition
+
+def circumference(degree, x, y, radius):
+  radian = math.radians(degree)
+  return radius * math.cos(radian) + x, radius * math.sin(radian) + y
+
+def quadratic(coefficient, focalwidth=1, midline=0, shape=2):
+  return focalwidth * coefficient ** shape + midline
 
 def plot_points_3D(obj, labels : bool = False):
   fig = plt.figure()
