@@ -6,7 +6,7 @@ import numpy as np
 
 class Object:
     def __init__(self, name=None, path=None, position=[0.0, 0.0, 0.0], rotate=[0.0, 0.0, 0.0], 
-                 scale=1, color=[127, 127, 127], luminance=0.0, reflectivity=0.0, ior=0.0,
+                 scale=1, color=[127, 127, 127], luminance=0.0, reflectivity=0.0, ior=1.0,
                  bvh=False):
         self.name = name
         self.position = np.array(position, dtype=np.float32)
@@ -24,6 +24,8 @@ class Object:
         self.luminance = luminance
         self.reflectivity = reflectivity
         self.ior = ior
+        assert ior >= 1.0
+        assert ior <= 2.42
 
         self.bvh = self.meshlet_bvh() if bvh else None
 

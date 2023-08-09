@@ -4,7 +4,7 @@ from PIL import Image
 from tqdm import tqdm
 from numba import njit
 
-# np.set_printoptions(threshold=sys.maxsize)
+np.set_printoptions(threshold=sys.maxsize)
 
 @njit
 def optimized_ray_triangle_intersection(origin, direction, triangle):
@@ -44,7 +44,7 @@ def optimized_trace(objects, origins, directions, skybox):
     t = np.full(n, np.inf, dtype=np.float64)
     obj_indices = np.full(n, -1, dtype=np.int8)
     normals = np.full((n, 3), [0.0, 0.0, 0.0], dtype=np.float64)
-    color = skybox.get_texture(directions)
+    color = np.zeros((n, 3), dtype=np.float64)
     reflectivity = np.full(n, 0.0, dtype=np.float64)
     ior = np.full(n, 0.0, dtype=np.float64)
     for obj_index, obj in enumerate(objects):
@@ -102,7 +102,7 @@ def trace(objects, origins, directions, skybox, use_bvh):
     t = np.full(n, np.inf, dtype=np.float64)
     obj_indices = np.full(n, -1, dtype=np.int8)
     normals = np.full((n, 3), [0.0, 0.0, 0.0], dtype=np.float64)
-    colors = skybox.get_texture(directions)
+    colors = np.zeros((n, 3), dtype=np.float64)
     reflectivity = np.full(n, 0.0, dtype=np.float64)
     ior = np.full(n, 0.0, dtype=np.float64)
 
@@ -149,6 +149,20 @@ def reflect(origins, directions, normals, bias):
     directions = directions - 2 * np.einsum('ij,ij->i', directions, normals)[:, np.newaxis] * normals
     return origins, directions
 
+def refract(incident_rays, normals, ior_values):
+    cosi = np.clip(np.einsum('ij,ij->i', incident_rays, normals), -1, 1)
+    etai = np.ones_like(cosi)
+    etat = np.where(np.abs(ior_values) < 1e-10, 1e-10, ior_values)
+    n = np.where(cosi[:, np.newaxis] < 0, normals, -normals)
+    cosi = np.abs(cosi)
+    eta = etai / etat
+    k = 1 - eta**2 * (1 - cosi**2)
+    total_internal_reflection = k[:, np.newaxis] < 0
+    reflected = incident_rays - 2 * np.einsum('ij,ij->i', incident_rays, n)[:, np.newaxis] * n
+    sqrt_k = np.sqrt(np.maximum(0, k))
+    refracted_directions = np.where(total_internal_reflection, reflected, eta[:, np.newaxis] * incident_rays + (eta * cosi - sqrt_k)[:, np.newaxis] * n)
+    return np.nan_to_num(refracted_directions)
+
 def compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks):
     n_layers, n_rays, _ = shadow_layers.shape
     accumulated_reflectivity = np.ones((n_rays, 1), dtype=np.float64)
@@ -164,34 +178,19 @@ def compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks):
 
     return np.clip(output, 0, 255).astype(np.uint8)
 
-# - Refraction -
-# processing one refractive object would require atleast two more depth passes after the initial intersection
-# 1. Hit object
-# 2. Ray passes through to other side of object
-# 3. Ray leaves current object and hits the next object
-# An object that is transparent can also be a bit reflective, so there will need to be 2x the tracing for any given refractive object (split ray at object intersection)
-# one way to approach this is to have a loop in the main render loop, to process the last 2 steps, possibly with in the refraction function itself
-# you might not need a loop, as long as there are always two steps to the logic
-# I might actually only need to run step 2, because step 3 would be calculated in the next pass
-# the only thing I need to consider is how to store the resulting hit colors from the rays that break off
-# also make sure that if an object is 100% reflective, but also has a refractivity value greater than 0, then the object doesnt get a seperate refract trace
-
-def render_experimental(params, cam, skybox, objects, lights):
-    st = time.time()
-    shape = (params.depth, params.h * params.w)
-    origins, directions = cam.position, cam.primary_rays(params.w, params.h)
+def render_thread(thread_number, shape, depth, origins, directions, skybox, objects, lights, use_bvh):
     shadow_layers, skybox_layers = np.zeros(shape + (3,), dtype=np.float64), np.zeros(shape + (3,), dtype=np.float64)
     shadow_masks = np.zeros(shape, dtype=bool)
     reflectivity_values = np.ones(shape, dtype=np.float64)
 
-    pbar = tqdm(total=params.depth, desc='Ray Depth')
-    for i in range(params.depth):
+    for i in range(depth):
+        print(f'Starting... Thread {thread_number}, Ray Depth {i + 1}, Max Depth {depth}')
         if len(origins.shape) > 1:
             t, obj_indices, normals, colors, reflectivity, ior = optimized_trace(objects, origins, directions, skybox)
         else:
-            t, obj_indices, normals, colors, reflectivity, ior = trace(objects, origins, directions, skybox, params.use_bvh)
+            t, obj_indices, normals, colors, reflectivity, ior = trace(objects, origins, directions, skybox, use_bvh)
 
-        if t.shape[0] == 0: pbar.update(params.depth - i); break
+        if t.shape[0] == 0: break
         intersects = origins + directions * t.reshape(-1, 1)
         
         current_mask = obj_indices != -1
@@ -203,23 +202,31 @@ def render_experimental(params, cam, skybox, objects, lights):
             mask = current_mask
             neg_mask = ~current_mask
 
-        skybox_layers[i, neg_mask] = skybox.get_texture(directions[~current_mask])
+        if directions[~current_mask].min() != 0 or directions[~current_mask].max() != 0:
+            skybox_layers[i, neg_mask] = skybox.get_texture(directions[~current_mask])
 
         origins, directions, normals = intersects[current_mask], directions[current_mask], normals[current_mask]
         colors, reflectivity, ior = colors[current_mask], reflectivity[current_mask], ior[current_mask]
- 
-        shaded_colors = shade(objects, lights, origins, normals, obj_indices[current_mask], skybox, params.use_bvh)
 
-        shadow_layers[i, mask] = shaded_colors
+        if depth - i - 1 != 0 and np.any(ior > 1.0) and np.any(ior <= 2.42):
+            refracted = refract(directions, normals, ior) if i % 2 == 0 else refract(directions, -normals, np.where(ior == 0, 1e-10, ior))
+            rorigins = origins + refracted * 1e-6 if i % 2 == 0 else origins
+            render_thread(thread_number + 1, (depth, len(directions)), depth - i - 1, rorigins, refracted, skybox, objects, lights, use_bvh)[:0]
+
+        shadow_layers[i, mask] = shade(objects, lights, origins, normals, obj_indices[current_mask], skybox, use_bvh)
         shadow_masks[i] = mask
 
         reflectivity_values[i, mask] = reflectivity
-
         origins, directions = reflect(origins, directions, normals, 1e-4)
+    print(f'returned thread {thread_number} at depth {i + 1}')
+    return shadow_layers, shadow_masks, skybox_layers, reflectivity_values
 
-        pbar.update()
-    pbar.close()
-
+def render_experimental(params, cam, skybox, objects, lights):
+    st = time.time()
+    shape = (params.depth, params.h * params.w)
+    origins, directions = cam.position, cam.primary_rays(params.w, params.h)
+    shadow_layers, shadow_masks, skybox_layers, reflectivity_values = render_thread(1, shape, params.depth, origins, directions, skybox, objects, lights, params.use_bvh)
+    
     rendered_image = compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks)
     image = Image.fromarray(rendered_image.reshape(params.h, params.w, 3), 'RGB')
     render_time = time.time() - st

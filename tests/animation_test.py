@@ -34,7 +34,7 @@ lights = [spherical_1]
 
 print('Total Triangles in Scene:', sum([len(o.faces) for o in objects]))
 
-params = SceenParams(400, 400, [6, 20, 77], 3, USE_BVH)
+params = SceenParams(100, 100, [6, 20, 77], 3, USE_BVH)
 skybox = Skybox('../littleengine/textures/puresky.jpg')
 images = []
 render_times = []

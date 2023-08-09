@@ -176,6 +176,10 @@ def render(params, cam, skybox, objects, lights):
         else:
             t, obj_indices, normals, colors, reflectivity, ior = trace(objects, origins, directions, skybox, params.use_bvh)
 
+        print(f'CONTAINS ZERO - Origins: {(origins == 0).any()}, Directions: {(directions == 0).any()}, T: {(t == 0).any()}')
+        if (directions == 0).any():
+            print(f'SUM OF 0s: {sum(directions == 0)}')
+
         if t.shape[0] == 0: pbar.update(params.depth - i); break
         intersects = origins + directions * t.reshape(-1, 1)
         
@@ -193,9 +197,7 @@ def render(params, cam, skybox, objects, lights):
         origins, directions, normals = intersects[current_mask], directions[current_mask], normals[current_mask]
         colors, reflectivity, ior = colors[current_mask], reflectivity[current_mask], ior[current_mask]
  
-        shaded_colors = shade(objects, lights, origins, normals, obj_indices[current_mask], skybox, params.use_bvh)
-
-        shadow_layers[i, mask] = shaded_colors
+        shadow_layers[i, mask] = shade(objects, lights, origins, normals, obj_indices[current_mask], skybox, params.use_bvh)
         shadow_masks[i] = mask
 
         reflectivity_values[i, mask] = reflectivity
