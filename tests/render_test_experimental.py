@@ -39,6 +39,12 @@ params = SceenParams(100, 100, [6, 20, 77], 3, USE_BVH)
 cam = Camera(position=[0, -5, 0], rotation=[90, 0, 180], fov=90, aspect_ratio=1)
 skybox = Skybox('../littleengine/textures/puresky.jpg')
 
+# render_experimental(params, cam, skybox, objects, lights)
+# node = tree
+# for i in range(3):
+#     print('Current', node.tnum, node.depth, len(node.mask))
+#     node = node.right
+
 print('Total Triangles in Scene:', sum([len(o.faces) for o in objects]))
 image, render_time = render_experimental(params, cam, skybox, objects, lights)
 print(f'Total Render Time: {render_time:.3f}s')

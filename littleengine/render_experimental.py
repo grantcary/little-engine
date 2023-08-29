@@ -163,6 +163,18 @@ def refract(incident_rays, normals, ior_values):
     refracted_directions = np.where(total_internal_reflection, reflected, eta[:, np.newaxis] * incident_rays + (eta * cosi - sqrt_k)[:, np.newaxis] * n)
     return np.nan_to_num(refracted_directions)
 
+class DepthNode:
+    def __init__(self, tnum, depth, shape, main=None, refract=None):
+        self.bnum = tnum
+        self.depth = depth
+        self.mask = np.zeros(shape, dtype=bool)
+        self.shadow = np.zeros((shape, 3), dtype=np.float64)
+        self.skybox = np.zeros((shape, 3), dtype=np.float64)
+        self.reflectivity = np.ones(shape, dtype=np.float64)
+
+        self.main = main
+        self.refract = refract
+
 def compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks):
     n_layers, n_rays, _ = shadow_layers.shape
     accumulated_reflectivity = np.ones((n_rays, 1), dtype=np.float64)
@@ -178,13 +190,37 @@ def compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks):
 
     return np.clip(output, 0, 255).astype(np.uint8)
 
-def render_thread(thread_number, shape, depth, origins, directions, skybox, objects, lights, use_bvh):
-    shadow_layers, skybox_layers = np.zeros(shape + (3,), dtype=np.float64), np.zeros(shape + (3,), dtype=np.float64)
-    shadow_masks = np.zeros(shape, dtype=bool)
-    reflectivity_values = np.ones(shape, dtype=np.float64)
+def tree_compositor(node, accumulated_reflectivity=None):
+    if node.main == None and node.refract == None:
+        return np.zeros_like(node.skybox)
+    
+    # TODO: blend both branches
+    # elif tree.main != None and tree.refract != None:
+    #     tree_compositor(tree.main)
+    #     tree_compositor(tree.refract)
+    #     return # composited
+
+    output = np.zeros_like(node.shadow)
+    if accumulated_reflectivity is None:
+        output[node.mask] += node.skybox[node.mask]
+        accumulated_reflectivity = np.ones_like(node.reflectivity.reshape(-1, 1))
+        
+    reflection_contribution = node.reflectivity[~node.mask, np.newaxis]
+    n = accumulated_reflectivity.copy()
+    n[~node.mask] *= reflection_contribution
+
+    output += tree_compositor(node.main, n)
+    output[~node.mask] += node.shadow[~node.mask] * (1 - reflection_contribution) * accumulated_reflectivity[~node.mask]
+    output[~node.mask] += node.main.skybox[~node.mask] * reflection_contribution * accumulated_reflectivity[~node.mask]
+    accumulated_reflectivity[~node.mask] *= reflection_contribution
+    return output
+
+def render_thread(branch_number, shape, depth, origins, directions, skybox, objects, lights, use_bvh):
+    head = DepthNode(branch_number, 0, shape)
+    prev = None
 
     for i in range(depth):
-        print(f'Starting... Thread {thread_number}, Ray Depth {i + 1}, Max Depth {depth}')
+        node = DepthNode(branch_number, i, shape) if i != 0 else head
         if len(origins.shape) > 1:
             t, obj_indices, normals, colors, reflectivity, ior = optimized_trace(objects, origins, directions, skybox)
         else:
@@ -203,7 +239,7 @@ def render_thread(thread_number, shape, depth, origins, directions, skybox, obje
             neg_mask = ~current_mask
 
         if directions[~current_mask].min() != 0 or directions[~current_mask].max() != 0:
-            skybox_layers[i, neg_mask] = skybox.get_texture(directions[~current_mask])
+            node.skybox[neg_mask] = skybox.get_texture(directions[~current_mask])
 
         origins, directions, normals = intersects[current_mask], directions[current_mask], normals[current_mask]
         colors, reflectivity, ior = colors[current_mask], reflectivity[current_mask], ior[current_mask]
@@ -211,23 +247,30 @@ def render_thread(thread_number, shape, depth, origins, directions, skybox, obje
         if depth - i - 1 != 0 and np.any(ior > 1.0) and np.any(ior <= 2.42):
             refracted = refract(directions, normals, ior) if i % 2 == 0 else refract(directions, -normals, np.where(ior == 0, 1e-10, ior))
             rorigins = origins + refracted * 1e-6 if i % 2 == 0 else origins
-            render_thread(thread_number + 1, (depth, len(directions)), depth - i - 1, rorigins, refracted, skybox, objects, lights, use_bvh)[:0]
+            node.refract = render_thread(branch_number + 1, len(directions), depth - i - 1, rorigins, refracted, skybox, objects, lights, use_bvh)
 
-        shadow_layers[i, mask] = shade(objects, lights, origins, normals, obj_indices[current_mask], skybox, use_bvh)
-        shadow_masks[i] = mask
+        node.shadow[mask] = shade(objects, lights, origins, normals, obj_indices[current_mask], skybox, use_bvh)
+        node.mask = ~mask
 
-        reflectivity_values[i, mask] = reflectivity
+        node.reflectivity[mask] = reflectivity
         origins, directions = reflect(origins, directions, normals, 1e-4)
-    print(f'returned thread {thread_number} at depth {i + 1}')
-    return shadow_layers, shadow_masks, skybox_layers, reflectivity_values
+        
+        if i != 0 and prev != None:
+            prev.main = node
+        prev = node
+            
+    return head
 
 def render_experimental(params, cam, skybox, objects, lights):
     st = time.time()
-    shape = (params.depth, params.h * params.w)
+    shape = params.h * params.w
     origins, directions = cam.position, cam.primary_rays(params.w, params.h)
-    shadow_layers, shadow_masks, skybox_layers, reflectivity_values = render_thread(1, shape, params.depth, origins, directions, skybox, objects, lights, params.use_bvh)
+    tree = render_thread(0, shape, params.depth, origins, directions, skybox, objects, lights, params.use_bvh)
+    output = tree_compositor(tree)
+    rendered_image = np.clip(output, 0, 255).astype(np.uint8)
+
     
-    rendered_image = compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks)
+    # rendered_image = compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks)
     image = Image.fromarray(rendered_image.reshape(params.h, params.w, 3), 'RGB')
     render_time = time.time() - st
     return image, render_time
