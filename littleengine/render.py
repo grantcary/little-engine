@@ -153,11 +153,7 @@ def compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks):
     output[~shadow_masks[0]] += skybox_layers[0, ~shadow_masks[0]]
 
     for i in range(n_layers - 1):
-        # print(f'Depth: {i}, MAX: {accumulated_reflectivity.max()}, MIN: {accumulated_reflectivity.min()}')
         shadow_mask = shadow_masks[i]
-        test1 = reflectivity_values[i]
-        print(f'Depth: {i}, MAX: {test1[shadow_mask].max()}, MIN: {test1[shadow_mask].min()}')
-        print(f'Depth: {i}, MAX: {test1[~shadow_mask].max()}, MIN: {test1[~shadow_mask].min()}')
         reflection_contribution = reflectivity_values[i, shadow_mask, np.newaxis]
         output[shadow_mask] += shadow_layers[i, shadow_mask] * (1 - reflection_contribution) * accumulated_reflectivity[shadow_mask]
         output[shadow_mask] += skybox_layers[i + 1, shadow_mask] * reflection_contribution * accumulated_reflectivity[shadow_mask]
@@ -180,7 +176,6 @@ def render(params, cam, skybox, objects, lights):
         else:
             t, obj_indices, normals, colors, reflectivity, ior = trace(objects, origins, directions, skybox, params.use_bvh)
 
-        # print(f'CONTAINS ZERO - Origins: {(origins == 0).any()}, Directions: {(directions == 0).any()}, T: {(t == 0).any()}')
         if (directions == 0).any():
             print(f'SUM OF 0s: {sum(directions == 0)}')
 

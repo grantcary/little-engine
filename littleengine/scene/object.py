@@ -5,8 +5,16 @@ import numpy as np
 # from scipy.spatial.transform import Rotation as R
 
 class Object:
-    def __init__(self, name=None, path=None, position=[0.0, 0.0, 0.0], rotate=[0.0, 0.0, 0.0], 
-                 scale=1, color=[127, 127, 127], luminance=0.0, reflectivity=0.0, ior=1.0,
+    def __init__(self, 
+                 name=None, 
+                 path=None, 
+                 position=[0.0, 0.0, 0.0], 
+                 rotate=[0.0, 0.0, 0.0], 
+                 scale=1, 
+                 color=[127, 127, 127], 
+                 luminance=0.0, 
+                 reflectivity=0.0, 
+                 ior=1.0,
                  bvh=False):
         self.name = name
         self.position = np.array(position, dtype=np.float32)

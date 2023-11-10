@@ -1,9 +1,8 @@
-import sys, time
+import time
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 from numba import njit
-
-np.set_printoptions(threshold=sys.maxsize)
 
 @njit
 def optimized_ray_triangle_intersection(origin, direction, triangle):
@@ -15,10 +14,7 @@ def optimized_ray_triangle_intersection(origin, direction, triangle):
 
     parallel_mask = np.abs(a) < epsilon
 
-    large_number = 1e9
-    a_safe = np.where(parallel_mask, large_number, a)
-
-    f = 1.0 / a_safe
+    f = 1.0 / a
     s = origin - v0
     u = f * np.dot(s, h.T)
     valid_u = (u >= 0) & (u <= 1)
@@ -43,7 +39,7 @@ def optimized_trace(objects, origins, directions, skybox):
     t = np.full(n, np.inf, dtype=np.float64)
     obj_indices = np.full(n, -1, dtype=np.int8)
     normals = np.full((n, 3), [0.0, 0.0, 0.0], dtype=np.float64)
-    color = np.zeros((n, 3), dtype=np.float64)
+    color = skybox.get_texture(directions)
     reflectivity = np.full(n, 0.0, dtype=np.float64)
     ior = np.full(n, 0.0, dtype=np.float64)
     for obj_index, obj in enumerate(objects):
@@ -101,7 +97,7 @@ def trace(objects, origins, directions, skybox, use_bvh):
     t = np.full(n, np.inf, dtype=np.float64)
     obj_indices = np.full(n, -1, dtype=np.int8)
     normals = np.full((n, 3), [0.0, 0.0, 0.0], dtype=np.float64)
-    colors = np.zeros((n, 3), dtype=np.float64)
+    colors = skybox.get_texture(directions)
     reflectivity = np.full(n, 0.0, dtype=np.float64)
     ior = np.full(n, 0.0, dtype=np.float64)
 
@@ -148,80 +144,42 @@ def reflect(origins, directions, normals, bias):
     directions = directions - 2 * np.einsum('ij,ij->i', directions, normals)[:, np.newaxis] * normals
     return origins, directions
 
-def refract(incident_rays, normals, ior_values):
-    cosi = np.clip(np.einsum('ij,ij->i', incident_rays, normals), -1, 1)
-    etai = np.ones_like(cosi)
-    etat = np.where(np.abs(ior_values) < 1e-10, 1e-10, ior_values)
-    n = np.where(cosi[:, np.newaxis] < 0, normals, -normals)
-    cosi = np.abs(cosi)
-    eta = etai / etat
-    k = 1 - eta**2 * (1 - cosi**2)
-    total_internal_reflection = k[:, np.newaxis] < 0
-    reflected = incident_rays - 2 * np.einsum('ij,ij->i', incident_rays, n)[:, np.newaxis] * n
-    sqrt_k = np.sqrt(np.maximum(0, k))
-    refracted_directions = np.where(total_internal_reflection, reflected, eta[:, np.newaxis] * incident_rays + (eta * cosi - sqrt_k)[:, np.newaxis] * n)
-    return np.nan_to_num(refracted_directions)
+def compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks):
+    n_layers, n_rays, _ = shadow_layers.shape
+    accumulated_reflectivity = np.ones((n_rays, 1), dtype=np.float64)
+    output = np.zeros((n_rays, 3), dtype=np.float64)
+    output[~shadow_masks[0]] += skybox_layers[0, ~shadow_masks[0]]
 
-class DepthNode:
-    def __init__(self, bnum, depth, shape):
-        self.bnum = bnum
-        self.depth = depth
-        self.mask = np.zeros(shape, dtype=bool)
-        self.shadow = np.zeros((shape, 3), dtype=np.float64)
-        self.skybox = np.zeros((shape, 3), dtype=np.float64)
-        self.reflectivity = np.ones(shape, dtype=np.float64)
+    for i in range(n_layers - 1):
+        shadow_mask = shadow_masks[i]
+        reflection_contribution = reflectivity_values[i, shadow_mask, np.newaxis]
+        output[shadow_mask] += shadow_layers[i, shadow_mask] * (1 - reflection_contribution) * accumulated_reflectivity[shadow_mask]
+        output[shadow_mask] += skybox_layers[i + 1, shadow_mask] * reflection_contribution * accumulated_reflectivity[shadow_mask]
+        accumulated_reflectivity[shadow_mask] *= reflection_contribution
 
-        self.main = None
-        self.refract = None
+    return np.clip(output, 0, 255).astype(np.uint8)
 
-    def set_main(self, bnum, depth, shape):
-        self.main = DepthNode(bnum, depth, shape)
-        return self.main
-    
-    def set_refract(self, bnum, depth, shape):
-        self.refract = DepthNode(bnum, depth, shape)
-        return self.refract
+def render(params, cam, skybox, objects, lights):
+    st = time.time()
+    shape = (params.depth, params.h * params.w)
+    origins, directions = cam.position, cam.primary_rays(params.w, params.h)
+    shadow_layers, skybox_layers = np.zeros(shape + (3,), dtype=np.float64), np.zeros(shape + (3,), dtype=np.float64)
+    shadow_masks = np.zeros(shape, dtype=bool)
+    reflectivity_values = np.ones(shape, dtype=np.float64)
 
-def tree_compositor(node, accumulated_reflectivity=None):
-    if node.main == None and node.refract == None:
-        return np.zeros_like(node.skybox)
-    
-    output = np.zeros_like(node.shadow)
-    if accumulated_reflectivity is None:
-        output[node.mask] += node.skybox[node.mask]
-        accumulated_reflectivity = np.ones_like(node.reflectivity.reshape(-1, 1))
-
-    # TODO: blend both branches
-    # elif tree.main != None and tree.refract != None:
-    #     tree_compositor(tree.main)
-    #     tree_compositor(tree.refract)
-    #     return # composited
-    
-    if node.refract:
-        print(f'refracted at {node.bnum}')
-        merge = tree_compositor(node.refract)
-
-    reflection_contribution = node.reflectivity[~node.mask, np.newaxis]
-    n = accumulated_reflectivity.copy()
-    n[~node.mask] *= reflection_contribution
-
-    output += tree_compositor(node.main, n)
-    output[~node.mask] += node.shadow[~node.mask] * (1 - reflection_contribution) * accumulated_reflectivity[~node.mask]
-    output[~node.mask] += node.main.skybox[~node.mask] * reflection_contribution * accumulated_reflectivity[~node.mask]
-    return output
-
-def render_thread(branch_number, shape, depth, origins, directions, skybox, objects, lights, use_bvh):
-    head, prev = DepthNode(branch_number, 0, shape), None
-    for i in range(depth):
-        node = head if i == 0 else prev.set_main(branch_number, i, shape)
+    pbar = tqdm(total=params.depth, desc='Ray Depth')
+    for i in range(params.depth):
         if len(origins.shape) > 1:
             t, obj_indices, normals, colors, reflectivity, ior = optimized_trace(objects, origins, directions, skybox)
         else:
-            t, obj_indices, normals, colors, reflectivity, ior = trace(objects, origins, directions, skybox, use_bvh)
+            t, obj_indices, normals, colors, reflectivity, ior = trace(objects, origins, directions, skybox, params.use_bvh)
 
-        if len(t) == 0: return head
+        if (directions == 0).any():
+            print(f'SUM OF 0s: {sum(directions == 0)}')
+
+        if t.shape[0] == 0: pbar.update(params.depth - i); break
         intersects = origins + directions * t.reshape(-1, 1)
-
+        
         current_mask = obj_indices != -1
         if i > 0:
             neg_mask = mask.copy()
@@ -231,37 +189,22 @@ def render_thread(branch_number, shape, depth, origins, directions, skybox, obje
             mask = current_mask
             neg_mask = ~current_mask
 
-        print(''.join([' '] * branch_number), branch_number, i, len(directions), sum(current_mask), sum(~current_mask))
-        if sum(current_mask) == 0 or sum(~current_mask) == 0: return head
-        if directions[~current_mask].min() != 0 or directions[~current_mask].max() != 0:
-            node.skybox[neg_mask] = skybox.get_texture(directions[~current_mask])
+        skybox_layers[i, neg_mask] = skybox.get_texture(directions[~current_mask])
 
         origins, directions, normals = intersects[current_mask], directions[current_mask], normals[current_mask]
         colors, reflectivity, ior = colors[current_mask], reflectivity[current_mask], ior[current_mask]
+ 
+        shadow_layers[i, mask] = shade(objects, lights, origins, normals, obj_indices[current_mask], skybox, params.use_bvh)
+        shadow_masks[i] = mask
 
-        if depth - i - 1 != 0 and np.any(ior > 1.0) and np.any(ior <= 2.42) and len(directions) != 0:
-            refracted = refract(directions, normals, ior) if i % 2 == 0 else refract(directions, -normals, np.where(ior == 0, 1e-10, ior))
-            rorigins = origins + refracted * 1e-6 if i % 2 == 0 else origins
-            node.refract = render_thread(branch_number + 1, len(directions), depth - i - 1, rorigins, refracted, skybox, objects, lights, use_bvh)
+        reflectivity_values[i, mask] = reflectivity
 
-        node.shadow[mask] = shade(objects, lights, origins, normals, obj_indices[current_mask], skybox, use_bvh)
-        node.mask = ~mask
-
-        node.reflectivity[mask] = reflectivity
         origins, directions = reflect(origins, directions, normals, 1e-4)
-        
-        prev = node
-    return head
 
-def render_experimental(params, cam, skybox, objects, lights):
-    st = time.time()
-    shape = params.h * params.w
-    origins, directions = cam.position, cam.primary_rays(params.w, params.h)
-    tree = render_thread(0, shape, params.depth, origins, directions, skybox, objects, lights, params.use_bvh)
+        pbar.update()
+    pbar.close()
 
-    image = tree_compositor(tree)
-    image = np.clip(image, 0, 255).astype(np.uint8)
-    image = Image.fromarray(image.reshape(params.h, params.w, 3), 'RGB')
-    
+    composed_image = compositor(shadow_layers, skybox_layers, reflectivity_values, shadow_masks)
+    image = Image.fromarray(composed_image.reshape(params.h, params.w, 3), 'RGB')
     render_time = time.time() - st
     return image, render_time
