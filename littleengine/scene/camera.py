@@ -4,7 +4,13 @@ import numpy as np
 from littleengine.utils import rotation_matrix
 
 class Camera:
-    def __init__(self, position=[0.0, 0.0, 0.0], rotation=[0.0, 0.0, 0.0], fov=90, near=0.1, far=1000, aspect_ratio=1):
+    def __init__(self, 
+                 position=[0.0, 0.0, 0.0], 
+                 rotation=[0.0, 0.0, 0.0], 
+                 fov=90, 
+                 near=0.1, 
+                 far=1000, 
+                 aspect_ratio=1):
         self.position = np.array(position, dtype=np.float32)
         self.rotation = np.array(rotation, dtype=np.float32)
         self.fov = fov

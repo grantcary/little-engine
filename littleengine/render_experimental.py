@@ -46,6 +46,7 @@ def optimized_trace(objects, origins, directions, skybox):
     color = np.zeros((n, 3), dtype=np.float64)
     reflectivity = np.full(n, 0.0, dtype=np.float64)
     ior = np.full(n, 0.0, dtype=np.float64)
+    alpha = np.full(n, 0.0, dtype=np.float64)
     for obj_index, obj in enumerate(objects):
         triangles = obj.vertices[obj.faces]
         m = triangles.shape[0]
@@ -57,8 +58,8 @@ def optimized_trace(objects, origins, directions, skybox):
             t_update = np.linalg.norm(intersects[i] - origins, axis=-1)
             mask = (t_update < t) &  hit[i]
             t[mask], obj_indices[mask], normals[mask] = t_update[mask], obj_index, obj.normals[i]
-            color[mask], reflectivity[mask], ior[mask] = obj.color, obj.reflectivity, obj.ior
-    return t, obj_indices, normals, color, reflectivity, ior
+            color[mask], reflectivity[mask], ior[mask], alpha[mask] = obj.color, obj.reflectivity, obj.ior, obj.alpha
+    return t, obj_indices, normals, color, reflectivity, ior, alpha
 
 def ray_triangle_intersection(origins, directions, triangle):
     epsilon = 1e-6
@@ -104,6 +105,7 @@ def trace(objects, origins, directions, skybox, use_bvh):
     colors = np.zeros((n, 3), dtype=np.float64)
     reflectivity = np.full(n, 0.0, dtype=np.float64)
     ior = np.full(n, 0.0, dtype=np.float64)
+    alpha = np.full(n, 0.0, dtype=np.float64)
 
     use_filter = len(origins.shape) > 1 and use_bvh
     if use_filter: filter_mask = filter_rays(objects, origins, directions)
@@ -121,8 +123,8 @@ def trace(objects, origins, directions, skybox, use_bvh):
             indices = np.where(filter_mask)[0] if use_filter else np.arange(n)
 
             t[indices[mask]], obj_indices[indices[mask]], normals[indices[mask]] = t_update[mask], obj_index, obj.normals[tri_index]
-            colors[indices[mask]], reflectivity[indices[mask]], ior[indices[mask]] = obj.color, obj.reflectivity, obj.ior
-    return t, obj_indices, normals, colors, reflectivity, ior
+            colors[indices[mask]], reflectivity[indices[mask]], ior[indices[mask]], alpha[indices[mask]] = obj.color, obj.reflectivity, obj.ior, obj.alpha
+    return t, obj_indices, normals, colors, reflectivity, ior, alpha
 
 def shade(objects, lights, intersects, normals, obj_indices, skybox, use_bvh):
     n = intersects.shape[0]
@@ -170,6 +172,7 @@ class DepthNode:
         self.shadow = np.zeros((shape, 3), dtype=np.float64)
         self.skybox = np.zeros((shape, 3), dtype=np.float64)
         self.reflectivity = np.ones(shape, dtype=np.float64)
+        self.alpha = np.zeros(shape, dtype=np.float64)
 
         self.main = None
         self.refract = None
@@ -191,23 +194,31 @@ def tree_compositor(node, accumulated_reflectivity=None):
         output[node.mask] += node.skybox[node.mask]
         accumulated_reflectivity = np.ones_like(node.reflectivity.reshape(-1, 1))
 
-    # TODO: blend both branches
-    # elif tree.main != None and tree.refract != None:
-    #     tree_compositor(tree.main)
-    #     tree_compositor(tree.refract)
-    #     return # composited
-    
-    if node.refract:
-        print(f'refracted at {node.bnum}')
-        merge = tree_compositor(node.refract)
-
     reflection_contribution = node.reflectivity[~node.mask, np.newaxis]
     n = accumulated_reflectivity.copy()
     n[~node.mask] *= reflection_contribution
 
-    output += tree_compositor(node.main, n)
-    output[~node.mask] += node.shadow[~node.mask] * (1 - reflection_contribution) * accumulated_reflectivity[~node.mask]
-    output[~node.mask] += node.main.skybox[~node.mask] * reflection_contribution * accumulated_reflectivity[~node.mask]
+    if node.refract:
+        reflect = tree_compositor(node.main, n)
+        refract = tree_compositor(node.refract)
+        diffuse = node.shadow[~node.mask]
+        skybox = node.main.skybox[~node.mask]
+        rc, inv_rc = reflection_contribution, (1 - reflection_contribution)
+        accum = accumulated_reflectivity[~node.mask]
+        alpha = node.alpha[~node.mask, np.newaxis]
+        inv_alpha = (1 - alpha)
+
+        r = refract * inv_alpha
+        d = (diffuse * inv_rc * accum) * alpha
+        s = skybox * rc * accum
+        output[~node.mask] += r + d + s
+
+        output += reflect
+    else:
+        output += tree_compositor(node.main, n)
+        output[~node.mask] += node.shadow[~node.mask] * (1 - reflection_contribution) * accumulated_reflectivity[~node.mask]
+        output[~node.mask] += node.main.skybox[~node.mask] * reflection_contribution * accumulated_reflectivity[~node.mask]
+
     return output
 
 def render_thread(branch_number, shape, depth, origins, directions, skybox, objects, lights, use_bvh):
@@ -215,9 +226,9 @@ def render_thread(branch_number, shape, depth, origins, directions, skybox, obje
     for i in range(depth):
         node = head if i == 0 else prev.set_main(branch_number, i, shape)
         if len(origins.shape) > 1:
-            t, obj_indices, normals, colors, reflectivity, ior = optimized_trace(objects, origins, directions, skybox)
+            t, obj_indices, normals, colors, reflectivity, ior, alpha = optimized_trace(objects, origins, directions, skybox)
         else:
-            t, obj_indices, normals, colors, reflectivity, ior = trace(objects, origins, directions, skybox, use_bvh)
+            t, obj_indices, normals, colors, reflectivity, ior, alpha = trace(objects, origins, directions, skybox, use_bvh)
 
         if len(t) == 0: return head
         intersects = origins + directions * t.reshape(-1, 1)
@@ -237,12 +248,13 @@ def render_thread(branch_number, shape, depth, origins, directions, skybox, obje
             node.skybox[neg_mask] = skybox.get_texture(directions[~current_mask])
 
         origins, directions, normals = intersects[current_mask], directions[current_mask], normals[current_mask]
-        colors, reflectivity, ior = colors[current_mask], reflectivity[current_mask], ior[current_mask]
+        colors, reflectivity, ior, alpha = colors[current_mask], reflectivity[current_mask], ior[current_mask], alpha[current_mask]
 
         if depth - i - 1 != 0 and np.any(ior > 1.0) and np.any(ior <= 2.42) and len(directions) != 0:
             refracted = refract(directions, normals, ior) if i % 2 == 0 else refract(directions, -normals, np.where(ior == 0, 1e-10, ior))
             rorigins = origins + refracted * 1e-6 if i % 2 == 0 else origins
             node.refract = render_thread(branch_number + 1, len(directions), depth - i - 1, rorigins, refracted, skybox, objects, lights, use_bvh)
+        node.alpha[mask] = alpha
 
         node.shadow[mask] = shade(objects, lights, origins, normals, obj_indices[current_mask], skybox, use_bvh)
         node.mask = ~mask

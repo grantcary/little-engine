@@ -15,6 +15,7 @@ class Object:
                  luminance=0.0, 
                  reflectivity=0.0, 
                  ior=1.0,
+                 alpha=1, 
                  bvh=False):
         self.name = name
         self.position = np.array(position, dtype=np.float32)
@@ -34,6 +35,7 @@ class Object:
         self.ior = ior
         assert ior >= 1.0
         assert ior <= 2.42
+        self.alpha = alpha
 
         self.bvh = self.meshlet_bvh() if bvh else None
 
