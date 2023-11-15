@@ -8,8 +8,8 @@ PLANE = 'test_objects/plane.obj'
 
 USE_BVH = False
 
-suzie = Object('Monkey', SUZIE, position=[2, 0, 0], rotate=[90, 0, 0], color=[255, 0, 0], reflectivity=0.01, bvh=USE_BVH)
-cube = Object('Cube', CUBE, position=[-2, 0, 0], color=[0, 255, 0], reflectivity=0.01, ior=1.3, bvh=USE_BVH)
+suzie = Object('Monkey', SUZIE, position=[2, 0, 0], rotate=[90, 0, 0], color=[255, 0, 0], bvh=USE_BVH)
+cube = Object('Cube', CUBE, position=[-2, 0, 0], color=[0, 255, 0], ior=1.3, alpha=0.3, bvh=USE_BVH)
 icosphere = Object('Icosphere', ICOSPHERE, position=[-2, 0, 0], color=[0, 255, 0], ior=1.3, reflectivity=0.2, bvh=USE_BVH)
 teapot = Object('Teapot', TEAPOT, position=[-2, 0, 0], color=[0, 255, 0], ior=1.3, bvh=USE_BVH)
 plane = Object('Plane', PLANE, position=[0, 0, -0.3], scale=7, rotate=[100, 0, 0], color=[0, 0, 0], reflectivity=1, bvh=USE_BVH)
@@ -18,7 +18,7 @@ objects = [suzie, cube, plane]
 spherical_1 = Light('Spherical 1', position=[-3, -3, 1], intensity=1)
 lights = [spherical_1]
 
-params = SceenParams(100, 100, [6, 20, 77], 3, USE_BVH)
+params = SceenParams(100, 100, [6, 20, 77], 5, USE_BVH)
 cam = Camera(position=[0, -5, 0], rotation=[90, 0, 180], fov=90, aspect_ratio=1)
 skybox = Skybox('littleengine/textures/puresky.jpg')
 

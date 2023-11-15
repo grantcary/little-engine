@@ -12,12 +12,12 @@ Supported Features:
  - Triangle Meshes
  - Shadows
  - Reflections
+ - Refraction
  - Bounding Volume Hierarchy
  - Meshlets
  - Skybox (equirectangular image)
 
 In Development:
- - Refraction
  - Object Textures
  - Depth of Field (DOF)
 
