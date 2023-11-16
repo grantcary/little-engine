@@ -41,7 +41,6 @@ def plot_surface_3D(coords: list):
   Y = coords[:, 1].reshape(grid_shape)
   Z = coords[:, 2].reshape(grid_shape)
 
-
   # ax.plot_trisurf(x, y, z, linewidth=0.2, antialiased=True)
   ax.plot_surface(X, Y, Z, cmap='viridis', edgecolor='none')
   ax.set_aspect('equal')
