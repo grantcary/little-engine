@@ -205,7 +205,7 @@ def tree_compositor(node, accumulated_reflectivity=None):
     output[~node.mask] += (node.main.skybox[~node.mask] * reflection_contribution * accumulated_reflectivity[~node.mask]) * alpha
     return output
 
-def render_thread(branch_number, shape, depth, origins, directions, skybox, objects, lights, use_bvh):
+def render_scene_tree(branch_number, shape, depth, origins, directions, skybox, objects, lights, use_bvh):
     head, prev = DepthNode(branch_number, 0, shape), None
     for i in range(depth):
         node = head if i == 0 else prev.set_main(branch_number, i, shape)
@@ -237,7 +237,7 @@ def render_thread(branch_number, shape, depth, origins, directions, skybox, obje
         if depth - i - 1 != 0 and np.any(ior > 1.0) and np.any(ior <= 2.42) and len(directions) != 0:
             refracted = refract(directions, normals, ior) if i % 2 == 0 else refract(directions, -normals, np.where(ior == 0, 1e-10, ior))
             rorigins = origins + refracted * 1e-6 if i % 2 == 0 else origins
-            node.refract = render_thread(branch_number + 1, len(directions), depth - i - 1, rorigins, refracted, skybox, objects, lights, use_bvh)
+            node.refract = render_scene_tree(branch_number + 1, len(directions), depth - i - 1, rorigins, refracted, skybox, objects, lights, use_bvh)
         node.alpha[mask] = alpha
 
         node.shadow[mask] = shade(objects, lights, origins, normals, obj_indices[current_mask])
@@ -253,7 +253,7 @@ def render(params, cam, skybox, objects, lights):
     st = time.time()
     shape = params.h * params.w
     origins, directions = cam.position, cam.primary_rays(params.w, params.h)
-    tree = render_thread(0, shape, params.depth, origins, directions, skybox, objects, lights, params.use_bvh)
+    tree = render_scene_tree(0, shape, params.depth, origins, directions, skybox, objects, lights, params.use_bvh)
 
     image = tree_compositor(tree)
     image = np.clip(image, 0, 255).astype(np.uint8)

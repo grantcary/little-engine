@@ -3,7 +3,7 @@ import numpy as np
 from typing import List
 
 class SceenParams():
-  def __init__(self, width: int = 100, height: int = 100, background_color: List[int] = [6, 20, 77], max_ray_depth: int = 3, use_bvh: bool = False):
+  def __init__(self, width: int = 100, height: int = 100, max_ray_depth: int = 3, use_bvh: bool = False, background_color: List[int] = [6, 20, 77]):
     self.w = width
     self.h = height
     self.bgc = background_color

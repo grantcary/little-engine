@@ -14,8 +14,8 @@ class Object:
                  color=[127, 127, 127], 
                  luminance=0.0, 
                  reflectivity=0.0, 
-                 ior=1.0,
-                 alpha=1, 
+                 ior=1.0003,
+                 alpha=1.0, 
                  bvh=False):
         self.name = name
         self.position = np.array(position, dtype=np.float32)
@@ -31,11 +31,9 @@ class Object:
 
         self.color = np.array(color, dtype=np.uint8)
         self.luminance = luminance
-        self.reflectivity = reflectivity
-        self.ior = ior
-        assert ior >= 1.0
-        assert ior <= 2.42
-        self.alpha = alpha
+        self.reflectivity = min(max(0, reflectivity), 1)
+        self.ior = max(1.0003, ior)
+        self.alpha = min(max(0, alpha), 1)
 
         self.bvh = self.meshlet_bvh() if bvh else None
 

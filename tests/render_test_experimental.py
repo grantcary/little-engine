@@ -36,8 +36,8 @@ lights = [spherical_1]
 # dot = tools.add_nodes_edges(suzie.bvh)
 # dot.render('binary_tree.gv', view=True)
 
-params = SceenParams(400, 300, [6, 20, 77], 10, USE_BVH)
-cam = Camera(position=[0, -5, 0], rotation=[90, 0, 180], fov=90, aspect_ratio=1)
+params = SceenParams(100, 100, 10, USE_BVH)
+cam = Camera(position=[0, -5, 0], rotation=[90, 0, 180], fov=90)
 skybox = Skybox('../littleengine/textures/puresky.jpg')
 
 print('Total Triangles in Scene:', sum([len(o.faces) for o in objects]))
