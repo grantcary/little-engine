@@ -21,4 +21,11 @@ In Development:
  - Object Textures
  - Depth of Field (DOF)
 
+Bugs:
+ - Shadow flicker between video frames
+ - More than one light causes weird shadows when animated
+ - Noise in objects with refraction
+ - Unknown issue where refraction gets projected onto nearby diffuse objects
+
 ![animation example](https://github.com/grantcary/little-engine/blob/main/rendered_images/animationexample.gif)
+![animation example](https://github.com/grantcary/little-engine/blob/main/rendered_images/refractexample.gif)
