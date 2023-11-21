@@ -21,6 +21,8 @@ In Development:
  - Object Textures
  - Depth of Field (DOF)
 
+![animation example](https://github.com/grantcary/little-engine/blob/main/rendered_images/complexcameramove.gif)
+
 Bugs:
  - Shadow flicker between video frames
  - More than one light causes weird shadows when animated
