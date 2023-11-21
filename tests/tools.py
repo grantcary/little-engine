@@ -7,8 +7,8 @@ def linearscale(coefficient, startposition=0, scale=1):
   return coefficient * scale + startposition
 
 def circumference(degree, x, y, radius):
-  radian = math.radians(degree)
-  return radius * math.cos(radian) + x, radius * math.sin(radian) + y
+  radian = np.radians(degree)
+  return radius * np.cos(radian) + x, radius * np.sin(radian) + y
 
 def quadratic(coefficient, focalwidth=1, midline=0, shape=2):
   return focalwidth * coefficient ** shape + midline
